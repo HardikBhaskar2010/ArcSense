@@ -52,9 +52,9 @@ export const ArcSenseBotBanner: React.FC<ArcSenseBotBannerProps> = ({
       const ip = state?.wifiIp || baseUrl.replace(/^https?:\/\//, '');
       return {
         prefix: 'ArcSense Agent',
-        text: `We're Live! Connected to ${deviceName} at ${ip} • Wi-Fi: ${ssid}${rssi} • Laptop Handshake Confirmed`,
+        text: `Connected ${deviceName} • Wi-Fi: ${ssid}${rssi} • Laptop Handshake Confirmed • Live Telemetry Active at ${ip}`,
         color: 'text-emerald-400',
-        badge: `CONNECTED: ${deviceName}`,
+        badge: `CONNECTED ${deviceName}`,
         badgeClass: 'bg-emerald-950/80 text-emerald-400 border-emerald-500/60 shadow-glow-normal',
       };
     }

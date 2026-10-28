@@ -90,6 +90,7 @@ export const DashboardPage: React.FC = () => {
       <Header
         connectionMode={connectionMode}
         baseUrl={baseUrl}
+        deviceName={state?.deviceName}
         isStale={isStale}
         lastUpdateTime={lastUpdateTime}
         latencyMs={latencyMs}

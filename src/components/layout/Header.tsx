@@ -20,6 +20,7 @@ import { cn } from '../../lib/utils';
 interface HeaderProps {
   connectionMode: ConnectionMode;
   baseUrl: string;
+  deviceName?: string;
   isStale: boolean;
   lastUpdateTime: Date | null;
   latencyMs: number | null;
@@ -36,6 +37,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   connectionMode,
   baseUrl,
+  deviceName,
   isStale,
   lastUpdateTime,
   latencyMs,
@@ -64,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
     switch (connectionMode) {
       case 'LIVE':
         return {
-          label: 'LIVE DEVICE',
+          label: deviceName ? `CONNECTED ${deviceName}` : 'LIVE DEVICE',
           classes: 'bg-emerald-500 text-black font-bold border-emerald-400 shadow-glow-normal',
           icon: <Wifi className="w-3.5 h-3.5" />,
         };

@@ -160,11 +160,23 @@ export const HardwareBridgeControls: React.FC<HardwareBridgeControlsProps> = ({
               'px-2.5 py-1 rounded-md text-[11px] font-bold border flex items-center gap-1.5',
               isLive
                 ? 'bg-emerald-950/80 text-emerald-400 border-emerald-500/50 shadow-glow-normal'
-                : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                : connectionMode === 'CONNECTING'
+                  ? 'bg-amber-950/80 text-amber-300 border-amber-500/50 animate-pulse'
+                  : 'bg-zinc-800 text-zinc-400 border-zinc-700'
             )}
           >
-            {isLive ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <WifiOff className="w-3.5 h-3.5" />}
-            {isLive ? 'BRIDGE ACTIVE' : 'NO LIVE HARDWARE'}
+            {isLive ? (
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            ) : connectionMode === 'CONNECTING' ? (
+              <Radio className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+            ) : (
+              <WifiOff className="w-3.5 h-3.5" />
+            )}
+            {isLive
+              ? `CONNECTED ${state?.deviceName || 'ArcSense-ESP8266'}`
+              : connectionMode === 'CONNECTING'
+                ? 'CONNECTING...'
+                : 'STANDBY (NO HARDWARE)'}
           </span>
           <button
             type="button"
