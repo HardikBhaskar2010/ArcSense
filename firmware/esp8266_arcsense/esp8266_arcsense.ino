@@ -59,6 +59,7 @@
 
   ESP8266WebServer server(80);
   LiquidCrystal_I2C *lcd = nullptr;
+  IPAddress deviceIP;
 
   const char* stateName(State s) {
     switch (s) {
@@ -396,7 +397,16 @@
     float risk = calcRisk(sT, sS, sA, sL, ttl);
     char l0[17], l1[17];
     snprintf(l0, sizeof(l0), "I:%-4.1fA T:%-3.0fC", (tripped ? 0.0f : irms), tObj);
-    snprintf(l1, sizeof(l1), "%-7s Rk:%2.0f%%", stateName(state), risk);
+
+    // Alternate line 2: 6 seconds showing status & risk, 3 seconds showing device IP
+    if ((millis() / 1000) % 9 >= 6) {
+      char ipBuf[16];
+      snprintf(ipBuf, sizeof(ipBuf), "%s", deviceIP.toString().c_str());
+      snprintf(l1, sizeof(l1), "IP:%-13s", ipBuf);
+    } else {
+      snprintf(l1, sizeof(l1), "%-7s Rk:%2.0f%%", stateName(state), risk);
+    }
+
     lcd->setCursor(0, 0); lcd->print(l0);
     lcd->setCursor(0, 1); lcd->print(l1);
   }
@@ -475,10 +485,12 @@
 
     server.begin();
 
+    deviceIP = activeIP;
+
     lcd->clear();
-    lcd->setCursor(0, 0); lcd->print(activeIP);
-    lcd->setCursor(0, 1); lcd->print(staConnected ? "WiFi Connected" : "SoftAP Ready");
-    delay(1500);
+    lcd->setCursor(0, 0); lcd->print("IP Address:");
+    lcd->setCursor(0, 1); lcd->print(deviceIP);
+    delay(4000);
   }
 
   void loop() {

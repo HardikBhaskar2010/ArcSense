@@ -63,9 +63,21 @@ function getInitialBaseUrl(): { url: string; autoLive: boolean } {
     const formatted = ipParam.startsWith('http') ? ipParam : `http://${ipParam}`;
     return { url: formatted, autoLive: true };
   }
-  if (window.location.protocol.startsWith('http') && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+  // Check if saved in localStorage
+  try {
+    const saved = localStorage.getItem('arcsense_device_ip');
+    if (saved) {
+      return { url: saved, autoLive: true };
+    }
+  } catch (e) {
+    // Ignore localStorage errors
+  }
+
+  // If directly served from the ESP's own IP address
+  if (window.location.protocol.startsWith('http') && /^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname)) {
     return { url: window.location.origin, autoLive: true };
   }
+
   return { url: 'http://192.168.4.1', autoLive: false };
 }
 
@@ -98,8 +110,19 @@ export const useArcSenseStore = create<ArcSenseStore>((set, get) => ({
   historyWindowSec: 90,
 
   setBaseUrl: (url: string) => {
-    set({ baseUrl: url.replace(/\/+$/, '') });
-    get().addLog('system', `Device IP set to: ${url}`);
+    const cleanUrl = url.replace(/\/+$/, '');
+    try {
+      localStorage.setItem('arcsense_device_ip', cleanUrl);
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+    set({
+      baseUrl: cleanUrl,
+      isSimulator: false,
+      connectionMode: 'CONNECTING',
+      consecutiveFails: 0,
+    });
+    get().addLog('system', `Device IP set to: ${cleanUrl}. Connecting...`);
   },
 
   setConnectionMode: (mode: ConnectionMode) => {
