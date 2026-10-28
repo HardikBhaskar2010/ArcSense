@@ -71,6 +71,8 @@ export function sanitizeStateResponse(raw: any): ArcSenseState {
     wifiConnected: raw.wifiConnected !== undefined ? Boolean(raw.wifiConnected) : undefined,
     uptimeSec: raw.uptimeSec !== undefined ? Number(raw.uptimeSec) : undefined,
     freeHeap: raw.freeHeap !== undefined ? Number(raw.freeHeap) : undefined,
+    deviceName: raw.deviceName ? String(raw.deviceName) : undefined,
+    connectedClient: raw.connectedClient ? String(raw.connectedClient) : undefined,
   };
 }
 
@@ -149,7 +151,7 @@ export class ArcSenseApiClient {
    * Fetch live engine state from ESP32
    */
   public async getState(signal?: AbortSignal): Promise<ArcSenseState> {
-    const endpoint = `${this.baseUrl}/api/state`;
+    const endpoint = `${this.baseUrl}/api/state?client=Laptop`;
     const response = await this.fetchWithTimeout(endpoint, signal);
     if (!response.ok) {
       throw new Error(`Failed to fetch state: HTTP ${response.status} ${response.statusText}`);

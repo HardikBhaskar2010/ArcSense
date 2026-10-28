@@ -98,6 +98,9 @@
   ESP8266WebServer server(80);
   LiquidCrystal_I2C *lcd = nullptr;
   IPAddress deviceIP;
+  const char* DEVICE_NAME = "ArcSense-ESP8266";
+  char connectedClient[17] = "";
+  unsigned long lastClientConnectMs = 0;
 
   const char* stateName(State s) {
     switch (s) {
@@ -297,10 +300,20 @@
     float dT = tObj - tAmb;
     if (dT < 0) dT = 0;
 
-    char b[640];
+    char b[720];
     String curSsid = (WiFi.status() == WL_CONNECTED ? WiFi.SSID() : (strlen(staSSID) > 0 ? String(staSSID) : "ArcSense-ESP"));
     int rssiVal = (WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0);
     bool wifiConn = (WiFi.status() == WL_CONNECTED);
+
+    if (server.hasArg("client")) {
+      String cl = server.arg("client");
+      if (cl.length() > 0 && strcmp(connectedClient, cl.c_str()) != 0) {
+        strncpy(connectedClient, cl.c_str(), sizeof(connectedClient) - 1);
+        connectedClient[sizeof(connectedClient) - 1] = '\0';
+        lastClientConnectMs = millis();
+        Serial.printf("Client Connected: '%s'\n", connectedClient);
+      }
+    }
 
     snprintf(b, sizeof(b),
       "{\"t\":%lu,\"irms\":%.2f,\"crest\":%.2f,\"diffIdx\":%.3f,\"flatFrac\":%.3f,\"arcCount\":%d,"
@@ -308,13 +321,15 @@
       "\"sT\":%.2f,\"sS\":%.2f,\"sA\":%.2f,\"sL\":%.2f,\"risk\":%.1f,\"level\":%d,"
       "\"tripped\":%s,\"sensorFault\":false,\"inj\":%d,"
       "\"state\":\"%s\",\"i\":%.2f,\"t\":%.1f,\"relay\":%s,"
-      "\"wifiSsid\":\"%s\",\"wifiRssi\":%d,\"wifiIp\":\"%s\",\"wifiConnected\":%s,\"uptimeSec\":%lu,\"freeHeap\":%u}",
+      "\"wifiSsid\":\"%s\",\"wifiRssi\":%d,\"wifiIp\":\"%s\",\"wifiConnected\":%s,\"uptimeSec\":%lu,\"freeHeap\":%u,"
+      "\"deviceName\":\"%s\",\"connectedClient\":\"%s\"}",
       millis(), (tripped ? 0.0f : irms), (tripped ? 0.0f : crestVal), diffIdxVal, flatFracVal, arcCountVal,
       tObj, tAmb, dT, slopeVal, ttlMin,
       sT, sS, sA, sL, risk, level,
       tripped ? "true" : "false", injMode,
       stateName(state), (tripped ? 0.0f : irms), tObj, isRelayOn() ? "true" : "false",
-      curSsid.c_str(), rssiVal, deviceIP.toString().c_str(), wifiConn ? "true" : "false", (millis() / 1000), ESP.getFreeHeap()
+      curSsid.c_str(), rssiVal, deviceIP.toString().c_str(), wifiConn ? "true" : "false", (millis() / 1000), ESP.getFreeHeap(),
+      DEVICE_NAME, connectedClient
     );
 
     cors();
@@ -616,13 +631,35 @@
 
   void showLcd() {
     if (!lcd) return;
+
+    // Toast: When laptop or client connects, show toast on LCD for 3.5 seconds!
+    if (lastClientConnectMs > 0 && millis() - lastClientConnectMs < 3500) {
+      char c0[17], c1[17];
+      snprintf(c0, sizeof(c0), "Connected: %-7s", connectedClient);
+      snprintf(c1, sizeof(c1), "Dashboard LIVE! ");
+      lcd->setCursor(0, 0); lcd->print(c0);
+      lcd->setCursor(0, 1); lcd->print(c1);
+      return;
+    }
+
     float sT, sS, sA, sL, ttl;
     float risk = calcRisk(sT, sS, sA, sL, ttl);
     char l0[17], l1[17];
     snprintf(l0, sizeof(l0), "I:%-4.1fA T:%-3.0fC", (tripped ? 0.0f : irms), tObj);
 
-    // Alternate line 2: 6 seconds showing status & risk, 3 seconds showing device IP
-    if ((millis() / 1000) % 9 >= 6) {
+    // 3-way rotation for line 2 (every 10s):
+    // 0..4s: Status & Risk (NORMAL Rk: 0%)
+    // 4..7s: IP Address (IP: 192.168.x.x)
+    // 7..10s: Client or Network Name (Connected: Laptop or Net: Airtel_Airfiber)
+    unsigned long sec = (millis() / 1000) % 10;
+    if (sec >= 7) {
+      if (strlen(connectedClient) > 0) {
+        snprintf(l1, sizeof(l1), "Client:%-9s", connectedClient);
+      } else {
+        String s = (WiFi.status() == WL_CONNECTED ? WiFi.SSID() : "AP:ArcSense");
+        snprintf(l1, sizeof(l1), "Net:%-12s", s.substring(0, 12).c_str());
+      }
+    } else if (sec >= 4) {
       char ipBuf[16];
       snprintf(ipBuf, sizeof(ipBuf), "%s", deviceIP.toString().c_str());
       snprintf(l1, sizeof(l1), "IP:%-13s", ipBuf);
@@ -644,9 +681,17 @@
     if (!addr) addr = 0x27;
     lcd = new LiquidCrystal_I2C(addr, 16, 2);
     lcd->init();
-    lcd->backlight();
-    lcd->setCursor(0, 0); lcd->print("ArcSense ESP8266");
-    lcd->setCursor(0, 1); lcd->print("Starting WiFi...");
+    // 1. Booting Screen
+    lcd->clear();
+    lcd->setCursor(0, 0); lcd->print("ArcSense NodeMCU");
+    lcd->setCursor(0, 1); lcd->print("Booting....     ");
+    delay(1200);
+
+    // 2. Hardware Diagnostics
+    lcd->clear();
+    lcd->setCursor(0, 0); lcd->print("Relay D5: LIVE  ");
+    lcd->setCursor(0, 1); lcd->print("Init Hardware...");
+    delay(800);
 
     // Load saved Wi-Fi from Flash (EEPROM)
     char loadedSsid[33];
@@ -669,7 +714,9 @@
 
     bool staConnected = false;
     if (strlen(staSSID) > 0) {
-      lcd->setCursor(0, 1); lcd->print("Connecting WiFi.");
+      lcd->clear();
+      lcd->setCursor(0, 0); lcd->print("Connecting WiFi:");
+      lcd->setCursor(0, 1); lcd->print(staSSID);
       Serial.printf("Connecting to Wi-Fi '%s'...\n", staSSID);
       WiFi.begin(staSSID, staPASS);
       unsigned long startTry = millis();
@@ -682,14 +729,32 @@
         Serial.println();
         Serial.print("Connected to Wi-Fi! Local IP: ");
         Serial.println(WiFi.localIP());
+
+        lcd->clear();
+        lcd->setCursor(0, 0); lcd->print("Connected: WiFi ");
+        lcd->setCursor(0, 1); lcd->print(staSSID);
+        delay(1500);
       } else {
         Serial.println("\nWi-Fi connection timed out. SoftAP Portal ready at 192.168.4.1/wifi");
         lcd->clear();
-        lcd->setCursor(0, 0); lcd->print("No WiFi -> AP");
+        lcd->setCursor(0, 0); lcd->print("No WiFi -> AP   ");
         lcd->setCursor(0, 1); lcd->print("192.168.4.1/wifi");
-        delay(2500);
+        delay(2000);
       }
+    } else {
+      lcd->clear();
+      lcd->setCursor(0, 0); lcd->print("Connected: AP   ");
+      lcd->setCursor(0, 1); lcd->print("ArcSense-ESP    ");
+      delay(1500);
     }
+
+    IPAddress activeIP = staConnected ? WiFi.localIP() : WiFi.softAPIP();
+    deviceIP = activeIP;
+
+    lcd->clear();
+    lcd->setCursor(0, 0); lcd->print("Node IP Address:");
+    lcd->setCursor(0, 1); lcd->print(deviceIP);
+    delay(2500);
 
     Serial.println();
     Serial.print("ArcSense AP Ready! IP: ");

@@ -69,6 +69,10 @@ export interface ArcSenseState {
   uptimeSec?: number;
   /** ESP8266 free RAM / heap in bytes */
   freeHeap?: number;
+  /** Hardware Node identity name */
+  deviceName?: string;
+  /** Name of the active client connected */
+  connectedClient?: string;
 }
 
 export interface WaveformData {

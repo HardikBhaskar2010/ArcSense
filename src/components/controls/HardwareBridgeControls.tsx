@@ -179,15 +179,22 @@ export const HardwareBridgeControls: React.FC<HardwareBridgeControlsProps> = ({
       {/* Hardware Telemetry Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
         <div className="bg-industrial-950 border border-zinc-800/80 rounded-lg p-2.5">
-          <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">Target Endpoint</span>
-          <span className="font-bold text-slate-100 truncate block text-[11px] mt-0.5" title={baseUrl}>
-            {baseUrl.replace(/^https?:\/\//, '')}
+          <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">Device Name</span>
+          <span className="font-bold text-sky-400 truncate block text-[11px] mt-0.5" title={`Target: ${baseUrl}`}>
+            {state?.deviceName || (isLive ? 'ArcSense-ESP8266' : 'ArcSense-Node')}
+          </span>
+        </div>
+
+        <div className="bg-industrial-950 border border-zinc-800/80 rounded-lg p-2.5">
+          <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">Connected Client</span>
+          <span className="font-bold text-emerald-400 truncate block text-[11px] mt-0.5">
+            {isLive ? 'Laptop (This Browser)' : '—'}
           </span>
         </div>
 
         <div className="bg-industrial-950 border border-zinc-800/80 rounded-lg p-2.5">
           <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">Node Wi-Fi (SSID)</span>
-          <span className="font-bold text-sky-400 truncate block text-[11px] mt-0.5">
+          <span className="font-bold text-slate-100 truncate block text-[11px] mt-0.5">
             {state?.wifiSsid || (isLive ? 'ArcSense-ESP' : '—')}
           </span>
         </div>
@@ -203,13 +210,6 @@ export const HardwareBridgeControls: React.FC<HardwareBridgeControlsProps> = ({
           <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">Ping Round-Trip</span>
           <span className="font-bold text-emerald-400 truncate block text-[11px] mt-0.5">
             {latencyMs !== null ? `${latencyMs} ms` : isLive ? '< 20 ms' : '—'}
-          </span>
-        </div>
-
-        <div className="bg-industrial-950 border border-zinc-800/80 rounded-lg p-2.5">
-          <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">ESP System Uptime</span>
-          <span className="font-bold text-slate-200 truncate block text-[11px] mt-0.5">
-            {state?.uptimeSec ? `${Math.floor(state.uptimeSec / 60)}m ${state.uptimeSec % 60}s` : '—'}
           </span>
         </div>
 

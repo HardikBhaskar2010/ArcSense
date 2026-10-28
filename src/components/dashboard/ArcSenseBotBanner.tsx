@@ -44,15 +44,17 @@ export const ArcSenseBotBanner: React.FC<ArcSenseBotBannerProps> = ({
       };
     }
 
+    const deviceName = state?.deviceName || 'ArcSense-ESP8266';
+
     if (connectionMode === 'LIVE') {
-      const ssid = state?.wifiSsid || 'Active Network';
+      const ssid = state?.wifiSsid || 'Network';
       const rssi = state?.wifiRssi !== undefined && state.wifiRssi !== 0 ? ` (${state.wifiRssi} dBm)` : '';
       const ip = state?.wifiIp || baseUrl.replace(/^https?:\/\//, '');
       return {
         prefix: 'ArcSense Agent',
-        text: `We're Live! Connected to ArcSense Hardware at ${ip} • Wi-Fi: ${ssid}${rssi} • Sensor Stream: SYNCHRONIZED`,
+        text: `We're Live! Connected to ${deviceName} at ${ip} • Wi-Fi: ${ssid}${rssi} • Laptop Handshake Confirmed`,
         color: 'text-emerald-400',
-        badge: 'LIVE HARDWARE',
+        badge: `CONNECTED: ${deviceName}`,
         badgeClass: 'bg-emerald-950/80 text-emerald-400 border-emerald-500/60 shadow-glow-normal',
       };
     }
@@ -60,9 +62,9 @@ export const ArcSenseBotBanner: React.FC<ArcSenseBotBannerProps> = ({
     if (connectionMode === 'CONNECTING') {
       return {
         prefix: 'ArcSense Agent',
-        text: `Searching for ArcSense hardware bridge at ${baseUrl}... Verifying /api/state telemetry link.`,
+        text: `Connecting to ${deviceName} at ${baseUrl}... Synchronizing real-time telemetry stream.`,
         color: 'text-amber-300',
-        badge: 'SEARCHING',
+        badge: 'CONNECTING...',
         badgeClass: 'bg-amber-950/80 text-amber-300 border-amber-500/50 animate-pulse',
       };
     }
