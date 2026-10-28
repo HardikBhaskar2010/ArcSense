@@ -1,10 +1,9 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useArcSenseStore } from '../lib/store';
-import { ArcSenseApiClient } from '../lib/arcsense-api';
+import { apiClient } from '../lib/arcsense-api';
 import { ArcSenseSimulator } from '../lib/simulator';
 import { FaultMode } from '../types/arcsense';
 
-const apiClient = new ArcSenseApiClient();
 const simulator = new ArcSenseSimulator();
 
 export function useArcSense() {

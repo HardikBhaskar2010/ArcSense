@@ -38,8 +38,8 @@
     char pass[65];
   };
 
-  char staSSID[33] = "Airtel_Airfiber";
-  char staPASS[65] = "Air@2006";
+  char staSSID[33] = "";
+  char staPASS[65] = "";
 
   DNSServer dnsServer;
 
@@ -297,22 +297,62 @@
     float dT = tObj - tAmb;
     if (dT < 0) dT = 0;
 
-    char b[512];
+    char b[640];
+    String curSsid = (WiFi.status() == WL_CONNECTED ? WiFi.SSID() : (strlen(staSSID) > 0 ? String(staSSID) : "ArcSense-ESP"));
+    int rssiVal = (WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0);
+    bool wifiConn = (WiFi.status() == WL_CONNECTED);
+
     snprintf(b, sizeof(b),
       "{\"t\":%lu,\"irms\":%.2f,\"crest\":%.2f,\"diffIdx\":%.3f,\"flatFrac\":%.3f,\"arcCount\":%d,"
       "\"tObj\":%.1f,\"tAmb\":%.1f,\"dT\":%.1f,\"slope\":%.2f,\"ttlMin\":%.1f,"
       "\"sT\":%.2f,\"sS\":%.2f,\"sA\":%.2f,\"sL\":%.2f,\"risk\":%.1f,\"level\":%d,"
       "\"tripped\":%s,\"sensorFault\":false,\"inj\":%d,"
-      "\"state\":\"%s\",\"i\":%.2f,\"t\":%.1f,\"relay\":%s}",
+      "\"state\":\"%s\",\"i\":%.2f,\"t\":%.1f,\"relay\":%s,"
+      "\"wifiSsid\":\"%s\",\"wifiRssi\":%d,\"wifiIp\":\"%s\",\"wifiConnected\":%s,\"uptimeSec\":%lu,\"freeHeap\":%u}",
       millis(), (tripped ? 0.0f : irms), (tripped ? 0.0f : crestVal), diffIdxVal, flatFracVal, arcCountVal,
       tObj, tAmb, dT, slopeVal, ttlMin,
       sT, sS, sA, sL, risk, level,
       tripped ? "true" : "false", injMode,
-      stateName(state), (tripped ? 0.0f : irms), tObj, isRelayOn() ? "true" : "false"
+      stateName(state), (tripped ? 0.0f : irms), tObj, isRelayOn() ? "true" : "false",
+      curSsid.c_str(), rssiVal, deviceIP.toString().c_str(), wifiConn ? "true" : "false", (millis() / 1000), ESP.getFreeHeap()
     );
 
     cors();
     server.send(200, "application/json", b);
+  }
+
+  // GET /api/ping - Ultra-fast latency healthcheck
+  void handleApiPing() {
+    cors();
+    char p[128];
+    snprintf(p, sizeof(p), "{\"pong\":true,\"uptimeSec\":%lu,\"freeHeap\":%u}", (millis() / 1000), ESP.getFreeHeap());
+    server.send(200, "application/json", p);
+  }
+
+  // ANY /api/relay?action=trip|restore - Direct physical relay override
+  void handleApiRelay() {
+    cors();
+    String action = server.arg("action");
+    if (action == "trip") {
+      tripped = true;
+      state = TRIP;
+      setRelay(false);
+    } else if (action == "restore") {
+      tripped = false;
+      state = NORMAL;
+      setRelay(true);
+    }
+    char r[128];
+    snprintf(r, sizeof(r), "{\"relay\":%s,\"tripped\":%s}", isRelayOn() ? "true" : "false", tripped ? "true" : "false");
+    server.send(200, "application/json", r);
+  }
+
+  // ANY /api/restart - Safe remote reboot
+  void handleApiRestart() {
+    cors();
+    server.send(200, "application/json", "{\"rebooting\":true}");
+    delay(500);
+    ESP.restart();
   }
 
   // GET /api/wave - Dynamic 96-point waveform that visibly distorts during faults
@@ -616,8 +656,7 @@
       strncpy(staPASS, loadedPass, sizeof(staPASS));
       Serial.printf("Loaded Wi-Fi from Flash: '%s'\n", staSSID);
     } else {
-      saveCredentials(staSSID, staPASS);
-      Serial.printf("Initialized Flash with default Wi-Fi: '%s'\n", staSSID);
+      Serial.println("No saved Wi-Fi in Flash. Provision via SoftAP at 192.168.4.1/wifi");
     }
 
     // Dual Wi-Fi mode: SoftAP (ArcSense-ESP) + Station (Home/Hotspot Wi-Fi)
@@ -688,6 +727,13 @@
     server.on("/api/wifi/scan", HTTP_OPTIONS, handleOptions);
     server.on("/api/wifi/save", HTTP_ANY, handleApiWifiSave);
     server.on("/api/wifi/save", HTTP_OPTIONS, handleOptions);
+
+    server.on("/api/ping", HTTP_GET, handleApiPing);
+    server.on("/api/ping", HTTP_OPTIONS, handleOptions);
+    server.on("/api/relay", HTTP_ANY, handleApiRelay);
+    server.on("/api/relay", HTTP_OPTIONS, handleOptions);
+    server.on("/api/restart", HTTP_ANY, handleApiRestart);
+    server.on("/api/restart", HTTP_OPTIONS, handleOptions);
 
     // Catch-all with CORS & captive portal redirect
     server.onNotFound([]() {

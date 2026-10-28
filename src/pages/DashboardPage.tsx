@@ -16,6 +16,8 @@ import { FaultSimulatorPanel } from '../components/controls/FaultSimulatorPanel'
 import { EventLogPanel } from '../components/log/EventLogPanel';
 import { DeviceSettingsModal } from '../components/controls/DeviceSettingsModal';
 import { KeyboardShortcutsModal } from '../components/controls/KeyboardShortcutsModal';
+import { ArcSenseBotBanner } from '../components/dashboard/ArcSenseBotBanner';
+import { HardwareBridgeControls } from '../components/controls/HardwareBridgeControls';
 import { Play } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
@@ -118,6 +120,27 @@ export const DashboardPage: React.FC = () => {
 
       {/* Main Control Room Layout */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-5 relative z-10">
+        {/* ArcSense AI Bot Assistant & Boot Status */}
+        <ArcSenseBotBanner
+          connectionMode={connectionMode}
+          baseUrl={baseUrl}
+          state={state}
+          latencyMs={latencyMs}
+          isSimulator={isSimulator}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onToggleSimulator={setIsSimulator}
+        />
+
+        {/* Hardware Bridge & Remote Communication Controls */}
+        <HardwareBridgeControls
+          connectionMode={connectionMode}
+          baseUrl={baseUrl}
+          state={state}
+          latencyMs={latencyMs}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onRefreshTelemetry={() => injectFault(activeFaultMode)}
+        />
+
         {/* Row 1: Primary Risk & Live Scope */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           <div className="lg:col-span-4 flex flex-col">

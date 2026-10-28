@@ -57,6 +57,18 @@ export interface ArcSenseState {
   sensorFault: boolean;
   /** Active fault injection mode (0=none, 1=arc, 2=overload, 3=joint) */
   inj: FaultMode;
+  /** Hardware Wi-Fi SSID connected to */
+  wifiSsid?: string;
+  /** Hardware Wi-Fi Signal Strength in dBm */
+  wifiRssi?: number;
+  /** Active IP assigned to ESP8266 */
+  wifiIp?: string;
+  /** Whether the ESP8266 is connected to a local Wi-Fi station */
+  wifiConnected?: boolean;
+  /** ESP8266 system uptime in seconds */
+  uptimeSec?: number;
+  /** ESP8266 free RAM / heap in bytes */
+  freeHeap?: number;
 }
 
 export interface WaveformData {

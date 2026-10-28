@@ -81,12 +81,12 @@ function getInitialBaseUrl(): { url: string; autoLive: boolean } {
   return { url: 'http://192.168.4.1', autoLive: false };
 }
 
-const { url: initialUrl, autoLive } = getInitialBaseUrl();
+const { url: initialUrl } = getInitialBaseUrl();
 
 export const useArcSenseStore = create<ArcSenseStore>((set, get) => ({
   baseUrl: initialUrl,
-  connectionMode: autoLive ? 'CONNECTING' : 'SIMULATOR',
-  isSimulator: !autoLive,
+  connectionMode: 'CONNECTING',
+  isSimulator: false,
   isStale: false,
   consecutiveFails: 0,
   lastUpdateTime: null,

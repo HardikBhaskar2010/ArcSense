@@ -65,6 +65,12 @@ export function sanitizeStateResponse(raw: any): ArcSenseState {
     tripped: bool(raw.tripped, false),
     sensorFault: bool(raw.sensorFault, false),
     inj,
+    wifiSsid: raw.wifiSsid ? String(raw.wifiSsid) : undefined,
+    wifiRssi: raw.wifiRssi !== undefined ? Number(raw.wifiRssi) : undefined,
+    wifiIp: raw.wifiIp ? String(raw.wifiIp) : undefined,
+    wifiConnected: raw.wifiConnected !== undefined ? Boolean(raw.wifiConnected) : undefined,
+    uptimeSec: raw.uptimeSec !== undefined ? Number(raw.uptimeSec) : undefined,
+    freeHeap: raw.freeHeap !== undefined ? Number(raw.freeHeap) : undefined,
   };
 }
 
@@ -178,7 +184,7 @@ export class ArcSenseApiClient {
   }
 
   /**
-   * Send reset command to ESP32
+   * Send reset command to ESP32 / ESP8266
    */
   public async reset(signal?: AbortSignal): Promise<boolean> {
     const endpoint = `${this.baseUrl}/api/reset`;
@@ -188,4 +194,52 @@ export class ArcSenseApiClient {
     }
     return true;
   }
+
+  /**
+   * Ping ESP hardware for round-trip latency check
+   */
+  public async ping(signal?: AbortSignal): Promise<{ pong: boolean; uptimeSec?: number; freeHeap?: number }> {
+    const endpoint = `${this.baseUrl}/api/ping`;
+    const response = await this.fetchWithTimeout(endpoint, signal);
+    return response.json();
+  }
+
+  /**
+   * Ask ESP to scan local 2.4 GHz airwaves
+   */
+  public async scanWifi(signal?: AbortSignal): Promise<Array<{ ssid: string; rssi: number }>> {
+    const endpoint = `${this.baseUrl}/api/wifi/scan`;
+    const response = await this.fetchWithTimeout(endpoint, signal);
+    return response.json();
+  }
+
+  /**
+   * Send Wi-Fi credentials to ESP flash memory
+   */
+  public async saveWifi(ssid: string, pass: string, signal?: AbortSignal): Promise<any> {
+    const endpoint = `${this.baseUrl}/api/wifi/save?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`;
+    const response = await this.fetchWithTimeout(endpoint, signal);
+    return response.json();
+  }
+
+  /**
+   * Physical relay manual trip/restore override
+   */
+  public async setRelay(action: 'trip' | 'restore', signal?: AbortSignal): Promise<any> {
+    const endpoint = `${this.baseUrl}/api/relay?action=${action}`;
+    const response = await this.fetchWithTimeout(endpoint, signal);
+    return response.json();
+  }
+
+  /**
+   * Remote reboot ESP8266
+   */
+  public async restart(signal?: AbortSignal): Promise<any> {
+    const endpoint = `${this.baseUrl}/api/restart`;
+    const response = await this.fetchWithTimeout(endpoint, signal);
+    return response.json();
+  }
 }
+
+export const apiClient = new ArcSenseApiClient();
+
