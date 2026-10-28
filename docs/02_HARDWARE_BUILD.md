@@ -46,11 +46,11 @@ Check **ATL stock first** — most modules below are standard ATL kit items exce
 
 | # | Part | Qty | Role | Ballpark ₹ |
 |---|---|---|---|---|
-| 1 | ESP32 DevKit V1 (30- or 38-pin) | 1 | MCU + Wi-Fi hotspot | 450–650 |
+| 1 | ESP8266 NodeMCU v2/v3 (or ESP32 DevKit V1) | 1 | MCU + Wi-Fi hotspot (Hardware-in-the-Loop simulator or ADC/I2C bridge) | 250–500 |
 | 2 | ACS712-**5 A** module | 1 | in-line current sensing (185 mV/A) | 100–200 |
-| 3 | MLX90614 module (GY-906). Prefer **BCC / 35° FOV**; BAA (90°) works if mounted 2–3 cm away | 1 | non-contact joint temperature | 1,000–1,800 |
-| 4 | SSD1306 0.96″ I2C OLED | 1 | on-device status | 120–250 |
-| 5 | 4-channel 5 V relay module (active-LOW) | 1 | trip + 2 fault-sim relays | 250–400 |
+| 3 | MLX90614 module (GY-906) *(optional in software sim mode)* | 1 | non-contact joint temperature | 1,000–1,800 |
+| 4 | LiquidCrystal_I2C 1602 LCD (or SSD1306 0.96″ I2C OLED) | 1 | on-device status display | 120–250 |
+| 5 | 1-channel or 4-channel 5 V relay module (active-LOW) | 1 | trip + fault-sim relays (D5 on NodeMCU) | 100–350 |
 | 6 | IRLZ44N logic-level MOSFET | 2 | back-to-back AC switch (chopper) | 40–100 |
 | 7 | Isolating transformer 230 V → 12 V AC, ≥ 5 A (60 VA), fused & enclosed | 1 | safe 12 V AC source | 500–900 |
 | 8 | 12 V 20 W bulbs (MR16 halogen) + holders | 2 | main load + overload load | 100–300 |
@@ -60,15 +60,28 @@ Check **ATL stock first** — most modules below are standard ATL kit items exce
 | 12 | 5 mm LEDs R/Y/G, 330 Ω ×3, active buzzer 5 V, push-button | 1 set | indicators | 40–80 |
 | 13 | Resistors: 10 kΩ ×1, 20 kΩ ×1 (ADC divider, 1 %), 100 Ω ×1, 100 kΩ ×1 | — | ADC scaling, gate drive | 10 |
 | 14 | Perfboard or small PCB, header pins, jumper wires, standoffs, M2.5/M3 screws | — | assembly | 150–300 |
-| 15 | 5 V 2 A USB adapter or power bank | 1 | ESP32 + relays | 200–400 |
+| 15 | 5 V 2 A USB adapter or power bank | 1 | NodeMCU + relays | 200–400 |
 | 16 | PETG filament (≈ 150 g) | — | enclosure / probe holder | ATL stock |
 | 17 | Matte-black electrical tape or paint | — | raises IR emissivity of the target | 20 |
 
-**Total ≈ ₹3,500–6,000** depending on the MLX90614 and what ATL already has. If the IR sensor is not available, tell me — I can add a DS18B20/thermistor variant (arc + overload demo still works with `USE_MLX 0`).
+**Total ≈ ₹1,500–5,000** depending on modules used. 
+> **Simulation Mode**: If external sensors (MLX90614, ACS712) are not yet wired, the NodeMCU firmware runs the complete dynamic physics engine onboard, responding to app fault injections, rendering dynamic waveforms, and actuating the physical trip relay on D5.
 
 ## 3. Wiring tables
 
-### 3.1 ESP32 pins
+### 3.0 ESP8266 NodeMCU Pinout
+
+| NodeMCU Pin | GPIO | Connects to | Function & Notes |
+|---|---|---|---|
+| **D1** | GPIO5 | I2C SCL | SCL of LiquidCrystal_I2C 1602 LCD (and optional MLX90614) |
+| **D2** | GPIO4 | I2C SDA | SDA of LiquidCrystal_I2C 1602 LCD (and optional MLX90614) |
+| **D5** | GPIO14 | Relay IN1 (**TRIP**) | Active-LOW: LOW = Relay ON (Live), HIGH = Tripped (Open circuit) |
+| **A0** | ADC0 | ACS712 OUT (via divider) | Analog current input (0–1.0 V range) |
+| **VIN / 5V** | — | 5V Relay VCC, 1602 LCD VCC | USB 5V power supply |
+| **3V3** | — | 3.3 V Logic / Sensors | (If using 3.3V sensors like MLX90614) |
+| **GND** | — | All GNDs | Common Ground |
+
+### 3.1 ESP32 pins (Alternative)
 
 | ESP32 pin | Connects to | Note |
 |---|---|---|
