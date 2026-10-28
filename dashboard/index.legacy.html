@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ArcSense Dashboard</title>
+<style>
+:root{
+  --bg:#0a0f1e; --card:#111a30; --line:#22305a; --txt:#dce7ff; --mute:#8497c2;
+  --cyan:#22d3ee; --green:#34d399; --amber:#fcd34d; --orange:#fb923c; --red:#f43f5e;
+  --mono: ui-monospace,"JetBrains Mono",SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:14px}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+.brand{font-weight:700;letter-spacing:.18em;font-size:18px}
+.brand small{display:block;letter-spacing:.02em;font-weight:400;color:var(--mute);font-size:11px;margin-top:2px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.badge{padding:4px 10px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--mute)}
+.badge.sim{color:#0a0f1e;background:var(--amber);border-color:var(--amber);font-weight:700}
+.badge.live{color:#0a0f1e;background:var(--green);border-color:var(--green);font-weight:700}
+.badge.lost{color:#fff;background:var(--red);border-color:var(--red);font-weight:700}
+main{display:grid;gap:12px;padding:12px 16px 24px;grid-template-columns:repeat(12,1fr);max-width:1200px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0}
+.card h3{margin:0 0 8px;font-size:11px;letter-spacing:.14em;color:var(--mute);font-weight:600}
+.risk{grid-column:span 4} .scope{grid-column:span 8} .temp{grid-column:span 6} .arc{grid-column:span 6}
+.ctl{grid-column:span 5} .log{grid-column:span 7}
+@media(max-width:900px){.risk,.scope,.temp,.arc,.ctl,.log{grid-column:span 12}}
+canvas{width:100%;display:block}
+#gauge{height:170px} #scope{height:190px} #temp{height:170px} #arcc{height:170px}
+.pill{display:inline-block;padding:6px 16px;border-radius:8px;font-weight:700;letter-spacing:.12em;font-size:18px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin-top:8px}
+.kv{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.kv div{background:#0d1530;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.kv b{display:block;font-size:16px}
+.kv span{font-size:10px;color:var(--mute);letter-spacing:.1em}
+button{font:inherit;color:var(--txt);background:#16224a;border:1px solid var(--line);border-radius:8px;padding:9px 12px;cursor:pointer}
+button:hover{border-color:var(--cyan)}
+button.on{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan) inset}
+button.danger{border-color:var(--red)}
+.btns{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+#log{height:150px;overflow:auto;font-size:12px;line-height:1.6;color:var(--mute)}
+#log b{color:var(--txt)}
+.note{font-size:11px;color:var(--mute);margin-top:8px;line-height:1.5}
+#tripBanner{display:none;margin-top:10px;padding:8px;border-radius:8px;background:var(--red);color:#fff;font-weight:700;text-align:center;letter-spacing:.1em}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">ARCSENSE<small>pre-fire electrical fault predictor</small></div>
+  <div class="badges">
+    <span id="mode" class="badge sim">SIMULATED DATA</span>
+    <span id="src" class="badge">demo scenarios</span>
+    <button id="switch" style="padding:4px 10px;font-size:12px">use live device</button>
+  </div>
+</header>
+<main>
+  <section class="card risk">
+    <h3>FIRE RISK</h3>
+    <canvas id="gauge"></canvas>
+    <div class="row"><span id="lvl" class="pill">NORMAL</span></div>
+    <div id="tripBanner">CIRCUIT TRIPPED &mdash; press RESET after fixing the fault</div>
+    <div class="kv">
+      <div><b id="kI">-</b><span>CURRENT A</span></div>
+      <div><b id="kT">-</b><span>JOINT &deg;C</span></div>
+      <div><b id="kS">-</b><span>&deg;C / MIN</span></div>
+      <div><b id="kTTL">-</b><span>TO ALARM</span></div>
+    </div>
+  </section>
+
+  <section class="card scope">
+    <h3>CURRENT WAVEFORM &mdash; ONE MAINS CYCLE (solid) vs IDEAL SINE (dashed)</h3>
+    <canvas id="scope"></canvas>
+    <div class="kv" style="grid-template-columns:repeat(4,1fr)">
+      <div><b id="kD">-</b><span>CYCLE-TO-CYCLE DIFF</span></div>
+      <div><b id="kA">-</b><span>ARC-LIKE CYCLES / s</span></div>
+      <div><b id="kC">-</b><span>CREST FACTOR</span></div>
+      <div><b id="kF">-</b><span>FLAT-ZERO SHARE</span></div>
+    </div>
+  </section>
+
+  <section class="card temp"><h3>JOINT TEMPERATURE (last 60 s)</h3><canvas id="temp"></canvas></section>
+  <section class="card arc"><h3>EVIDENCE SCORES (0&ndash;1): thermal / slope / arc / load</h3><canvas id="arcc"></canvas></section>
+
+  <section class="card ctl">
+    <h3>FAULT SIMULATOR</h3>
+    <div class="btns">
+      <button data-m="0" class="on">Normal load</button>
+      <button data-m="3">Loose joint (heating)</button>
+      <button data-m="1">Arcing contact</button>
+      <button data-m="2">Overload</button>
+      <button id="reset" class="danger">RESET trip</button>
+      <button id="csv">Download CSV</button>
+    </div>
+    <div class="note" id="ctlnote"></div>
+  </section>
+
+  <section class="card log"><h3>EVENT LOG</h3><div id="log"></div></section>
+</main>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const LV = ["NORMAL","WATCH","WARNING","DANGER"];
+const COL = ["#34d399","#fcd34d","#fb923c","#f43f5e"];
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const SPC = 96;
+
+/* ---------- same scoring maths as arcsense_core.h (used by the simulator) ---------- */
+const CFG = {iRated:3, dTWarn:15, dTAlarm:35, tAbs:75, slopeFull:6, ttlH:10, arcFull:10,
+             wT:.9, wS:.6, wA:.9, wL:.5, l1:25, l2:50, l3:75};
+function score(s){
+  const alarmT = Math.min(CFG.tAbs, s.tAmb + CFG.dTAlarm);
+  s.dT = s.tObj - s.tAmb;
+  s.ttlMin = s.tObj >= alarmT ? 0 : (s.slope > 0.3 ? (alarmT - s.tObj)/s.slope : -1);
+  s.sT = clamp01((s.dT - CFG.dTWarn)/(CFG.dTAlarm - CFG.dTWarn));
+  const sl = clamp01(s.slope/CFG.slopeFull), tt = s.ttlMin >= 0 ? clamp01(1 - s.ttlMin/CFG.ttlH) : 0;
+  s.sS = s.dT > 5 ? Math.max(sl, tt) : 0;
+  s.sA = clamp01((s.arcCount - 1)/(CFG.arcFull - 1));
+  s.sL = clamp01((s.irms/CFG.iRated - 0.9)/0.3);
+  let R = 100*(1 - (1-CFG.wT*s.sT)*(1-CFG.wS*s.sS)*(1-CFG.wA*s.sA)*(1-CFG.wL*s.sL));
+  if (s.arcCount >= CFG.arcFull || s.tObj >= CFG.tAbs) R = Math.max(R, 90);
+  s.risk = R;
+  return R;
+}
+
+/* ---------- data source: simulator or live ESP32 ---------- */
+const params = new URLSearchParams(location.search);
+let live = false, base = "", fails = 0, scenario = 0, timer = null;
+const hist = {t:[], i:[], sc:[]}, rows = [];
+let lastLevel = 0, lastTrip = false, t0 = Date.now();
+
+const sim = {
+  tObj:31, tAmb:30, irms:2.0, arcCount:0, diffIdx:.02, crest:1.414, flat:.06, slope:0, level:0, tripped:false,
+  dangerTicks:0, lowTicks:0, tHist:[], mode:0,
+  tick(dt){
+    const m = this.mode, tr = this.tripped;
+    let tgt = this.tAmb + 6, tau = 25, i = 2.0, diff = .02 + Math.random()*.012, arc = 0;
+    if (m===3){ tgt = this.tAmb + 70; tau = 30; i = 2.2; }
+    if (m===1){ tgt = this.tAmb + 10; diff = .18 + Math.random()*.2; this.arcTicks = (this.arcTicks||0) + 1; arc = Math.min(13, 1 + this.arcTicks*2 + Math.floor(Math.random()*2)); i = 2.0 + (Math.random()-.5)*.5; }
+    if (m===2){ tgt = this.tAmb + 38; tau = 40; i = 3.9; }
+    if (m!==1) this.arcTicks = 0;
+    if (tr){ tgt = this.tAmb + 2; tau = 40; i = 0; diff = 0; arc = 0; }
+    this.tObj += (tgt - this.tObj)*(1 - Math.exp(-dt/tau)) + (Math.random()-.5)*.15;
+    this.irms = i ? i + (Math.random()-.5)*.04 : 0;
+    this.diffIdx = diff; this.arcCount = arc;
+    this.crest = i ? (m===1 ? 1.9 + Math.random()*.5 : 1.414) : 0;
+    this.flat = i ? (m===1 ? .16 + Math.random()*.2 : .064) : 0;
+    this.tHist.push(this.tObj); if (this.tHist.length > 30) this.tHist.shift();
+    this.slope = lsq(this.tHist, dt)*60;
+    const s = {tObj:this.tObj, tAmb:this.tAmb, irms:this.irms, arcCount:this.arcCount, slope:this.slope};
+    const R = score(s);
+    if (!this.tripped){
+      const tg = R>=CFG.l3?3 : R>=CFG.l2?2 : R>=CFG.l1?1 : 0;
+      if (tg >= this.level){ this.level = tg; this.lowTicks = 0; }
+      else if (R < [0,CFG.l1,CFG.l2,CFG.l3][this.level] - 5){ if (++this.lowTicks >= 10){ this.level--; this.lowTicks = 0; } }
+      else this.lowTicks = 0;
+      if (this.level===3){ if (++this.dangerTicks >= 2) this.tripped = true; } else this.dangerTicks = 0;
+    } else this.level = 3;
+    return Object.assign(s, {t:Date.now()-t0, crest:this.crest, diffIdx:this.diffIdx, flatFrac:this.flat, risk:R,
+      level:this.level, tripped:this.tripped, inj:this.mode});
+  },
+  wave(){
+    const A = this.irms*Math.SQRT2, w = new Array(SPC).fill(0);
+    if (!A) return w;
+    let va = [0,0];
+    if (this.mode===1) va = [Math.random()<.7?.05+Math.random()*.35:0, Math.random()<.7?.05+Math.random()*.35:0];
+    for (let j=0;j<SPC;j++){
+      const s = Math.sin(2*Math.PI*j/100), h = s<0?1:0, a = Math.abs(s), v = this.mode===1 ? Math.max(0,(a-va[h])/(1-va[h])) : a;
+      w[j] = A*(s<0?-v:v) + (Math.random()-.5)*(this.mode===1?.7:.05);
+    }
+    return w;
+  },
+  reset(){ this.arcTicks=0; this.tripped=false; this.level=0; this.mode=0; this.dangerTicks=0; this.lowTicks=0; }
+};
+function lsq(a, dt){ const n=a.length; if(n<10) return 0; let sx=0,sy=0,sxx=0,sxy=0;
+  for(let k=0;k<n;k++){sx+=k;sy+=a[k];sxx+=k*k;sxy+=k*a[k];} const d=n*sxx-sx*sx; return d? (n*sxy-sx*sy)/d/dt : 0; }
+
+function fx(url){ const c = new AbortController(); const id = setTimeout(()=>c.abort(), 1500);
+  return fetch(url, {cache:"no-store", signal:c.signal}).finally(()=>clearTimeout(id)); }
+async function poll(){
+  let s, w;
+  if (live){
+    try{
+      const r = await fx(base + "/api/state"); s = await r.json();
+      const rw = await fx(base + "/api/wave"); w = (await rw.json()).a.map(v => v/100);
+      fails = 0; setBadge("live");
+    }catch(e){ if (++fails >= 3) setBadge("lost"); return; }
+  } else { s = sim.tick(.5); w = sim.wave(); setBadge("sim"); }
+  render(s, w);
+}
+function setBadge(k){
+  const b = $("mode");
+  b.className = "badge " + k;
+  b.textContent = k==="sim" ? "SIMULATED DATA" : k==="live" ? "LIVE DEVICE" : "LINK LOST";
+  $("src").textContent = live ? (base || location.host) : "demo scenarios";
+  $("switch").textContent = live ? "use simulator" : "use live device";
+}
+
+/* ---------- rendering ---------- */
+function fit(c){ const d = devicePixelRatio||1, r = c.getBoundingClientRect(); c.width = r.width*d; c.height = r.height*d;
+  const g = c.getContext("2d"); g.setTransform(d,0,0,d,0,0); return {g, w:r.width, h:r.height}; }
+
+function drawGauge(R, lv){
+  const {g,w,h} = fit($("gauge")), cx = w/2, cy = h-14, rad = Math.min(w/2-14, h-30);
+  g.clearRect(0,0,w,h); g.lineWidth = 16; g.lineCap = "round";
+  g.strokeStyle = "#1a2750"; g.beginPath(); g.arc(cx,cy,rad,Math.PI,2*Math.PI); g.stroke();
+  g.strokeStyle = COL[lv]; g.beginPath(); g.arc(cx,cy,rad,Math.PI,Math.PI + Math.PI*clamp01(R/100)); g.stroke();
+  g.fillStyle = "#dce7ff"; g.font = "700 38px "+getComputedStyle(document.body).fontFamily; g.textAlign = "center";
+  g.fillText(Math.round(R), cx, cy-18); g.font = "11px "+getComputedStyle(document.body).fontFamily; g.fillStyle = "#8497c2"; g.fillText("RISK / 100", cx, cy);
+}
+function lineChart(id, series, o){
+  const {g,w,h} = fit($(id)), L=34, B=18, T=8, R=8, pw=w-L-R, ph=h-T-B;
+  g.clearRect(0,0,w,h); g.font = "10px monospace"; g.fillStyle = "#8497c2"; g.strokeStyle = "#1a2750"; g.lineWidth = 1;
+  for(let k=0;k<=4;k++){ const y = T + ph*k/4, v = o.max - (o.max-o.min)*k/4; g.beginPath(); g.moveTo(L,y); g.lineTo(w-R,y); g.stroke(); g.textAlign="right"; g.fillText(v.toFixed(o.dec||0), L-4, y+3); }
+  (o.lines||[]).forEach(l=>{ const y = T + ph*(1-(l.v-o.min)/(o.max-o.min)); g.strokeStyle=l.c; g.setLineDash([4,4]); g.beginPath(); g.moveTo(L,y); g.lineTo(w-R,y); g.stroke(); g.setLineDash([]); g.fillStyle=l.c; g.textAlign="left"; g.fillText(l.t, L+4, y-3); });
+  (o.legend||[]).forEach((t,k)=>{ g.fillStyle = o.cols[k]; g.textAlign = "left"; g.fillText("\u25cf "+t, L+6+k*80, T+12); });
+  series.forEach(s=>{ g.strokeStyle = s.c; g.lineWidth = 2; g.beginPath();
+    s.d.forEach((v,k)=>{ const x = L + pw*k/Math.max(1,(o.n||s.d.length)-1), y = T + ph*(1-(clamp01((v-o.min)/(o.max-o.min)))); k?g.lineTo(x,y):g.moveTo(x,y); }); g.stroke(); });
+}
+function drawScope(w){
+  const {g,w:W,h:H} = fit($("scope")), m = 8, mid = H/2, amp = Math.max(1.5, ...w.map(Math.abs))*1.15;
+  g.clearRect(0,0,W,H); g.strokeStyle = "#1a2750"; g.lineWidth = 1;
+  for(let k=-2;k<=2;k++){ const y = mid - k*(H/2-m)/2; g.beginPath(); g.moveTo(0,y); g.lineTo(W,y); g.stroke(); }
+  const pk = Math.max(...w.map(Math.abs)), idealA = rmsOf(w)*Math.SQRT2;
+  g.setLineDash([5,5]); g.strokeStyle = "#8497c2"; g.beginPath();
+  for(let j=0;j<SPC;j++){ const x = j/(SPC-1)*W, y = mid - Math.sin(2*Math.PI*j/100)*idealA/amp*(H/2-m); j?g.lineTo(x,y):g.moveTo(x,y); } g.stroke(); g.setLineDash([]);
+  g.strokeStyle = "#22d3ee"; g.lineWidth = 2; g.beginPath();
+  w.forEach((v,j)=>{ const x = j/(SPC-1)*W, y = mid - v/amp*(H/2-m); j?g.lineTo(x,y):g.moveTo(x,y); }); g.stroke();
+  g.fillStyle = "#8497c2"; g.font = "10px monospace"; g.textAlign = "left"; g.fillText("±"+amp.toFixed(1)+" A", 4, 12);
+  if (pk < 0.05){ g.textAlign = "center"; g.font = "14px monospace"; g.fillStyle = "#fb923c"; g.fillText("NO CURRENT — circuit open or load off", W/2, mid-14); }
+}
+function rmsOf(a){ let s=0; a.forEach(v=>s+=v*v); return Math.sqrt(s/a.length); }
+
+let prevLog = "";
+function render(s, wave){
+  const lv = s.level, R = s.risk;
+  drawGauge(R, lv);
+  const p = $("lvl"); p.textContent = LV[lv]; p.style.background = COL[lv]; p.style.color = "#0a0f1e";
+  $("tripBanner").style.display = s.tripped ? "block" : "none";
+  $("kI").textContent = s.irms.toFixed(2); $("kT").textContent = s.tObj.toFixed(1);
+  $("kS").textContent = (s.slope>=0?"+":"")+s.slope.toFixed(1);
+  $("kTTL").textContent = s.ttlMin < 0 ? "—" : (s.ttlMin <= 0 ? "NOW" : (s.ttlMin < 1 ? Math.round(s.ttlMin*60)+" s" : s.ttlMin.toFixed(1)+" min"));
+  $("kD").textContent = (s.diffIdx*100).toFixed(0)+"%"; $("kA").textContent = s.arcCount;
+  $("kC").textContent = s.crest.toFixed(2); $("kF").textContent = (s.flatFrac*100).toFixed(0)+"%";
+  hist.t.push(s.tObj); hist.i.push(s.irms); hist.sc.push([s.sT ?? s.sThermal, s.sS ?? s.sSlope, s.sA ?? s.sArc, s.sL ?? s.sLoad]);
+  if (hist.t.length > 120){ hist.t.shift(); hist.i.shift(); hist.sc.shift(); }
+  const amb = s.tAmb;
+  lineChart("temp", [{d:hist.t, c:"#22d3ee"}], {min:20, max:100, n:120, lines:[{v:Math.min(CFG.tAbs, amb+CFG.dTAlarm), c:"#f43f5e", t:"alarm"}, {v:amb+CFG.dTWarn, c:"#fcd34d", t:"warn"}]});
+  const cols = ["#f43f5e","#fb923c","#c084fc","#22d3ee"];
+  lineChart("arcc", [0,1,2,3].map(k=>({d:hist.sc.map(r=>r[k]), c:cols[k]})), {min:0, max:1, n:120, dec:1, legend:["thermal","slope","arc","load"], cols:cols});
+  drawScope(wave);
+  rows.push([s.t, s.irms, s.tObj, s.slope, s.diffIdx, s.arcCount, s.risk, s.level, s.tripped?1:0].map(v=>typeof v==="number"?+v.toFixed(3):v).join(","));
+  if (lv !== lastLevel){ log(`level <b>${LV[lastLevel]}</b> &rarr; <b style="color:${COL[lv]}">${LV[lv]}</b> (risk ${R.toFixed(0)}, arc ${s.arcCount}/s, ${s.tObj.toFixed(1)}&deg;C)`); lastLevel = lv; }
+  if (s.tripped && !lastTrip) log(`<b style="color:${COL[3]}">TRIP</b> &mdash; circuit opened (fail-safe relay released)`);
+  lastTrip = s.tripped;
+  const inj = s.inj ?? scenario;
+  document.querySelectorAll("[data-m]").forEach(b=>b.classList.toggle("on", +b.dataset.m === inj));
+}
+function log(h){ const d = $("log"), t = ((Date.now()-t0)/1000).toFixed(0).padStart(3," ");
+  d.insertAdjacentHTML("afterbegin", `<div>[${t}s] ${h}</div>`); }
+
+/* ---------- controls ---------- */
+const notes = {0:"Healthy load: waveform repeats every cycle, joint stays near ambient.",
+  3:"A high-resistance joint heats the terminal. ArcSense reacts to the RATE of rise and predicts time-to-alarm, not just the temperature.",
+  1:"Current chopped at random instants, like an arcing contact. Cycle-to-cycle difference jumps; heat sensors alone would miss this.",
+  2:"A second load pushes current above the circuit rating."};
+document.querySelectorAll("[data-m]").forEach(b => b.onclick = async () => {
+  const m = +b.dataset.m; scenario = m; $("ctlnote").textContent = notes[m]; log(`inject: <b>${b.textContent}</b>`);
+  if (live){ try{ await fetch(base + "/api/inject?mode=" + m); }catch(e){} } else sim.mode = m;
+});
+$("reset").onclick = async () => { log("reset pressed"); scenario = 0; if (live){ try{ await fetch(base + "/api/reset"); }catch(e){} } else sim.reset(); };
+$("csv").onclick = () => { const b = new Blob(["ms,irms_A,tobj_C,slope_C_min,diffIdx,arcCount,risk,level,tripped\n"+rows.join("\n")], {type:"text/csv"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "arcsense_log.csv"; a.click(); };
+$("switch").onclick = () => { live = !live; base = live ? (params.get("ip") ? "http://"+params.get("ip") : (location.protocol.startsWith("http") ? "" : "http://192.168.4.1")) : "";
+  log(live ? "switched to LIVE device " + (base||location.host) : "switched to simulator"); setBadge(live?"live":"sim"); };
+
+/* auto-live when served by the ESP32 (http) or ?ip= is given */
+(async () => {
+  $("ctlnote").textContent = notes[0];
+  if (params.get("ip")){ live = true; base = "http://" + params.get("ip"); }
+  else if (location.protocol.startsWith("http")){
+    try{ const r = await fetch("/api/state", {cache:"no-store"}); if (r.ok){ live = true; base = ""; } }catch(e){}
+  }
+  setBadge(live ? "live" : "sim");
+  log(live ? "connected to live device" : "running built-in simulator (no device connected)");
+  timer = setInterval(poll, 500); poll();
+})();
+addEventListener("resize", () => {});
+</script>
+</body>
+</html>
