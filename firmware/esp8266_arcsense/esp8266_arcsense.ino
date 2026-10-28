@@ -30,8 +30,8 @@
 
   // OPTIONAL: Your home Wi-Fi or mobile phone hotspot credentials
   // If filled, the ESP connects to your Wi-Fi so your PC has INTERNET and ESP access at the same time!
-  const char* STA_SSID = "";   // e.g. "MyHomeWiFi" or "HotspotName" (leave "" if using AP only)
-  const char* STA_PASS = "";   // e.g. "WiFiPassword"
+  const char* STA_SSID = "Airtel_Airfiber";
+  const char* STA_PASS = "Air@2006";
 
   // Thresholds
   const float I_WARN = 8.0f,  I_TRIP = 12.0f;  // Amps
