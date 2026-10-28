@@ -16,6 +16,8 @@
 
   #include <ESP8266WiFi.h>
   #include <ESP8266WebServer.h>
+  #include <DNSServer.h>
+  #include <EEPROM.h>
   #include <Wire.h>
   #include <LiquidCrystal_I2C.h>
   #include <math.h>
@@ -23,15 +25,51 @@
   #define SDA_PIN D2            // GPIO4
   #define SCL_PIN D1            // GPIO5
   #define RELAY_PIN D5          // GPIO14 - relay IN1, active LOW (LOW = load ON)
+  #define EEPROM_MAGIC 0xA7
 
   // Standalone Access Point (broadcasted by ESP - no router needed)
   const char* AP_SSID = "ArcSense-ESP";
   const char* AP_PASS = "arcsense123";   // min 8 chars
 
-  // OPTIONAL: Your home Wi-Fi or mobile phone hotspot credentials
-  // If filled, the ESP connects to your Wi-Fi so your PC has INTERNET and ESP access at the same time!
-  const char* STA_SSID = "Airtel_Airfiber";
-  const char* STA_PASS = "Air@2006";
+  // Persistent Wi-Fi credentials in Flash Memory (EEPROM)
+  struct StoredWiFi {
+    uint8_t magic;
+    char ssid[33];
+    char pass[65];
+  };
+
+  char staSSID[33] = "Airtel_Airfiber";
+  char staPASS[65] = "Air@2006";
+
+  DNSServer dnsServer;
+
+  void saveCredentials(const char* s, const char* p) {
+    EEPROM.begin(256);
+    StoredWiFi w;
+    w.magic = EEPROM_MAGIC;
+    memset(w.ssid, 0, sizeof(w.ssid));
+    memset(w.pass, 0, sizeof(w.pass));
+    strncpy(w.ssid, s, sizeof(w.ssid) - 1);
+    strncpy(w.pass, p, sizeof(w.pass) - 1);
+    EEPROM.put(0, w);
+    EEPROM.commit();
+    EEPROM.end();
+  }
+
+  bool loadCredentials(char* s, char* p) {
+    EEPROM.begin(256);
+    StoredWiFi w;
+    EEPROM.get(0, w);
+    EEPROM.end();
+    if (w.magic == EEPROM_MAGIC && strlen(w.ssid) > 0) {
+      strncpy(s, w.ssid, 32);
+      s[32] = '\0';
+      strncpy(p, w.pass, 64);
+      p[64] = '\0';
+      return true;
+    }
+    return false;
+  }
 
   // Thresholds
   const float I_WARN = 8.0f,  I_TRIP = 12.0f;  // Amps
@@ -382,6 +420,151 @@
     handleApiState();
   }
 
+  // --- Wi-Fi Setup & Captive Portal Handlers ---
+  void handleWifiPage() {
+    int n = WiFi.scanNetworks();
+    String html = F("<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>ArcSense Wi-Fi Setup</title><style>"
+      "body{background:#090d16;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;margin:0;padding:20px;display:flex;justify-content:center;box-sizing:border-box;}"
+      ".card{background:#131c2e;border:1px solid #1e293b;border-radius:12px;padding:24px;width:100%;max-width:400px;box-shadow:0 10px 25px rgba(0,0,0,0.6);box-sizing:border-box;}"
+      "h2{color:#38bdf8;margin:0 0 8px 0;font-size:20px;display:flex;align-items:center;gap:8px;font-family:monospace;}"
+      "p{font-size:13px;color:#94a3b8;margin:0 0 16px 0;line-height:1.4;}"
+      ".cur{background:#090d16;border:1px solid #334155;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;font-family:monospace;}"
+      "label{display:block;font-size:11px;font-weight:700;color:#94a3b8;margin:12px 0 6px 0;text-transform:uppercase;letter-spacing:0.5px;}"
+      "select,input{width:100%;box-sizing:border-box;background:#090d16;border:1px solid #334155;color:#fff;padding:12px;border-radius:8px;font-size:14px;outline:none;font-family:inherit;}"
+      "select:focus,input:focus{border-color:#38bdf8;}"
+      "button{width:100%;background:#38bdf8;color:#090d16;font-weight:bold;border:none;padding:14px;border-radius:8px;font-size:14px;margin-top:20px;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;}"
+      "button:hover{background:#7dd3fc;}"
+      "</style></head><body><div class='card'>"
+      "<h2>⚡ ArcSense Wi-Fi Setup</h2>"
+      "<p>Select a nearby Wi-Fi network or mobile hotspot to connect this ArcSense NodeMCU.</p>"
+      "<div class='cur'>Saved SSID: <b>");
+    html += staSSID;
+    html += F("</b><br>Device IP: <b>");
+    html += (WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString());
+    html += F("</b></div>"
+      "<form action='/wifi' method='POST'>"
+      "<label>Available Wi-Fi Networks:</label>"
+      "<select name='ssid' id='netSelect' onchange=\"document.getElementById('cBox').style.display=(this.value=='__custom__')?'block':'none';\">");
+
+    if (n <= 0) {
+      html += F("<option value='__custom__'>No networks found (Type manually)</option>");
+    } else {
+      for (int i = 0; i < n; ++i) {
+        String s = WiFi.SSID(i);
+        if (s.length() > 0) {
+          html += "<option value='" + s + "'>" + s + " (" + String(WiFi.RSSI(i)) + " dBm)</option>";
+        }
+      }
+      html += F("<option value='__custom__'>-- Enter Other Wi-Fi Name --</option>");
+    }
+
+    html += F("</select>"
+      "<div id='cBox' style='display:none;margin-top:8px;'><input type='text' name='custom_ssid' placeholder='Type Network Name'></div>"
+      "<label>Wi-Fi Password:</label>"
+      "<input type='password' name='pass' placeholder='Enter Wi-Fi Password' autocomplete='current-password'>"
+      "<button type='submit'>Save & Connect</button>"
+      "</form></div></body></html>");
+
+    server.send(200, "text/html", html);
+  }
+
+  void handleWifiSubmit() {
+    String ssid = server.arg("ssid");
+    if (ssid == "__custom__" || ssid.length() == 0) {
+      ssid = server.arg("custom_ssid");
+    }
+    String pass = server.arg("pass");
+    ssid.trim();
+    pass.trim();
+
+    if (ssid.length() == 0) {
+      server.send(400, "text/html", "<h3>Error: Wi-Fi Name cannot be empty! <a href='/wifi'>Go Back</a></h3>");
+      return;
+    }
+
+    saveCredentials(ssid.c_str(), pass.c_str());
+    strncpy(staSSID, ssid.c_str(), sizeof(staSSID) - 1);
+    strncpy(staPASS, pass.c_str(), sizeof(staPASS) - 1);
+
+    String resp = F("<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><style>"
+      "body{background:#090d16;color:#e2e8f0;font-family:sans-serif;padding:30px;text-align:center;}"
+      ".card{background:#131c2e;border:1px solid #1e293b;border-radius:12px;padding:24px;max-width:380px;margin:auto;}"
+      "h3{color:#34d399;font-size:20px;margin-top:0;}"
+      "p{font-size:14px;color:#94a3b8;line-height:1.5;}"
+      "b{color:#fff;}"
+      "</style></head><body><div class='card'>"
+      "<h3>✅ Wi-Fi Saved to Flash!</h3>"
+      "<p>Connecting to <b>");
+    resp += ssid;
+    resp += F("</b>...</p>"
+      "<p>Look at the <b>1602 LCD display</b> on the hardware for your new IP address.</p>"
+      "<p style='font-size:12px;color:#64748b;'>You can now reconnect your phone/laptop to that same Wi-Fi!</p>"
+      "</div></body></html>");
+
+    server.send(200, "text/html", resp);
+
+    if (lcd) {
+      lcd->clear();
+      lcd->setCursor(0, 0); lcd->print("Connecting WiFi:");
+      lcd->setCursor(0, 1); lcd->print(staSSID);
+    }
+
+    WiFi.disconnect();
+    delay(200);
+    WiFi.begin(staSSID, staPASS);
+    unsigned long startTry = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startTry < 8000) {
+      delay(250);
+    }
+    if (WiFi.status() == WL_CONNECTED) {
+      deviceIP = WiFi.localIP();
+      if (lcd) {
+        lcd->clear();
+        lcd->setCursor(0, 0); lcd->print("WiFi Connected!");
+        lcd->setCursor(0, 1); lcd->print(deviceIP);
+        delay(2500);
+      }
+    }
+  }
+
+  void handleApiWifiScan() {
+    cors();
+    int n = WiFi.scanNetworks();
+    String json = "[";
+    for (int i = 0; i < n; ++i) {
+      if (i > 0) json += ",";
+      json += "{\"ssid\":\"" + WiFi.SSID(i) + "\",\"rssi\":" + String(WiFi.RSSI(i)) + "}";
+    }
+    json += "]";
+    server.send(200, "application/json", json);
+  }
+
+  void handleApiWifiSave() {
+    cors();
+    String ssid = server.arg("ssid");
+    String pass = server.arg("pass");
+    ssid.trim();
+    pass.trim();
+    if (ssid.length() == 0) {
+      server.send(400, "application/json", "{\"error\":\"Missing ssid\"}");
+      return;
+    }
+    saveCredentials(ssid.c_str(), pass.c_str());
+    strncpy(staSSID, ssid.c_str(), sizeof(staSSID) - 1);
+    strncpy(staPASS, pass.c_str(), sizeof(staPASS) - 1);
+    server.send(200, "application/json", "{\"success\":true,\"message\":\"Credentials saved to flash\"}");
+
+    if (lcd) {
+      lcd->clear();
+      lcd->setCursor(0, 0); lcd->print("Connecting WiFi:");
+      lcd->setCursor(0, 1); lcd->print(staSSID);
+    }
+
+    WiFi.disconnect();
+    delay(200);
+    WiFi.begin(staSSID, staPASS);
+  }
+
   // I2C Scanner to find LCD address automatically
   uint8_t scanI2C() {
     for (uint8_t a = 1; a < 127; a++) {
@@ -425,15 +608,31 @@
     lcd->setCursor(0, 0); lcd->print("ArcSense ESP8266");
     lcd->setCursor(0, 1); lcd->print("Starting WiFi...");
 
-    // Dual Wi-Fi mode: SoftAP (ArcSense-ESP) + Optional Station (Home/Hotspot Wi-Fi)
+    // Load saved Wi-Fi from Flash (EEPROM)
+    char loadedSsid[33];
+    char loadedPass[65];
+    if (loadCredentials(loadedSsid, loadedPass)) {
+      strncpy(staSSID, loadedSsid, sizeof(staSSID));
+      strncpy(staPASS, loadedPass, sizeof(staPASS));
+      Serial.printf("Loaded Wi-Fi from Flash: '%s'\n", staSSID);
+    } else {
+      saveCredentials(staSSID, staPASS);
+      Serial.printf("Initialized Flash with default Wi-Fi: '%s'\n", staSSID);
+    }
+
+    // Dual Wi-Fi mode: SoftAP (ArcSense-ESP) + Station (Home/Hotspot Wi-Fi)
     WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(AP_SSID, AP_PASS);
 
+    // Start Captive Portal DNS server (intercepts all DNS requests in AP mode)
+    dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
+    dnsServer.start(53, "*", WiFi.softAPIP());
+
     bool staConnected = false;
-    if (STA_SSID != nullptr && strlen(STA_SSID) > 0) {
+    if (strlen(staSSID) > 0) {
       lcd->setCursor(0, 1); lcd->print("Connecting WiFi.");
-      Serial.printf("Connecting to Wi-Fi '%s'...\n", STA_SSID);
-      WiFi.begin(STA_SSID, STA_PASS);
+      Serial.printf("Connecting to Wi-Fi '%s'...\n", staSSID);
+      WiFi.begin(staSSID, staPASS);
       unsigned long startTry = millis();
       while (WiFi.status() != WL_CONNECTED && millis() - startTry < 8000) {
         delay(250);
@@ -445,7 +644,11 @@
         Serial.print("Connected to Wi-Fi! Local IP: ");
         Serial.println(WiFi.localIP());
       } else {
-        Serial.println("\nWi-Fi connection timed out. Continuing with SoftAP only.");
+        Serial.println("\nWi-Fi connection timed out. SoftAP Portal ready at 192.168.4.1/wifi");
+        lcd->clear();
+        lcd->setCursor(0, 0); lcd->print("No WiFi -> AP");
+        lcd->setCursor(0, 1); lcd->print("192.168.4.1/wifi");
+        delay(2500);
       }
     }
 
@@ -473,11 +676,30 @@
     server.on("/reset", HTTP_ANY, handleReset);
     server.on("/reset", HTTP_OPTIONS, handleOptions);
 
-    // Catch-all with CORS options handling
+    // Wi-Fi Setup & Captive Portal Endpoints
+    server.on("/wifi", HTTP_GET, handleWifiPage);
+    server.on("/wifi", HTTP_POST, handleWifiSubmit);
+    server.on("/generate_204", HTTP_GET, handleWifiPage);
+    server.on("/hotspot-detect.html", HTTP_GET, handleWifiPage);
+    server.on("/canonical.html", HTTP_GET, handleWifiPage);
+    server.on("/ncsi.txt", HTTP_GET, handleWifiPage);
+
+    server.on("/api/wifi/scan", HTTP_GET, handleApiWifiScan);
+    server.on("/api/wifi/scan", HTTP_OPTIONS, handleOptions);
+    server.on("/api/wifi/save", HTTP_ANY, handleApiWifiSave);
+    server.on("/api/wifi/save", HTTP_OPTIONS, handleOptions);
+
+    // Catch-all with CORS & captive portal redirect
     server.onNotFound([]() {
       if (server.method() == HTTP_OPTIONS) {
         handleOptions();
       } else {
+        String host = server.hostHeader();
+        if (host.length() > 0 && !host.startsWith("192.168.") && host.indexOf("arcsense") == -1) {
+          server.sendHeader("Location", "http://192.168.4.1/wifi", true);
+          server.send(302, "text/plain", "");
+          return;
+        }
         cors();
         server.send(404, "text/plain", "Not Found");
       }
@@ -494,6 +716,7 @@
   }
 
   void loop() {
+    dnsServer.processNextRequest();
     server.handleClient();
 
     // Run dynamic simulation tick every 200ms

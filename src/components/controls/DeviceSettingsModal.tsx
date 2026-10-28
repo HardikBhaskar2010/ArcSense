@@ -166,6 +166,23 @@ export const DeviceSettingsModal: React.FC<DeviceSettingsModalProps> = ({
             </div>
           </div>
 
+          {/* Hardware Wi-Fi Manager Portal link */}
+          <div className="pt-2 border-t border-zinc-800">
+            <span className="text-[11px] text-zinc-300 block mb-1 font-medium">On-The-Go Wi-Fi Setup:</span>
+            <p className="text-[10px] text-zinc-400 mb-2 leading-relaxed">
+              Moving to a new Wi-Fi or mobile phone hotspot? Connect to <code className="text-sky-300 font-bold">ArcSense-ESP</code> and open the setup portal to scan & save credentials to flash without reflashing code:
+            </p>
+            <a
+              href={`${currentBaseUrl.startsWith('http://192.168.') ? currentBaseUrl : 'http://192.168.4.1'}/wifi`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-sky-950/80 hover:bg-sky-900 border border-sky-600/40 text-sky-300 text-xs font-mono transition-colors"
+            >
+              <Wifi className="w-3.5 h-3.5" />
+              <span>Open Hardware Wi-Fi Portal (/wifi) ↗</span>
+            </a>
+          </div>
+
           {/* Polling Frequency Selector */}
           {onSelectPollRate && (
             <div className="pt-2 border-t border-zinc-800">
