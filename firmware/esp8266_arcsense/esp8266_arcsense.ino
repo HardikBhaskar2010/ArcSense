@@ -648,6 +648,7 @@
 
   void showLcd() {
     if (!lcd) return;
+    lcd->backlight();
 
     // Toast: When laptop connects, show "Connected" / "{DEVICE_NAME}" for 4.0 seconds!
     if (lastClientConnectMs > 0 && (millis() - lastClientConnectMs < 4000)) {
