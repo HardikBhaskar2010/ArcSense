@@ -24,8 +24,14 @@
   #define SCL_PIN D1            // GPIO5
   #define RELAY_PIN D5          // GPIO14 - relay IN1, active LOW (LOW = load ON)
 
+  // Standalone Access Point (broadcasted by ESP - no router needed)
   const char* AP_SSID = "ArcSense-ESP";
   const char* AP_PASS = "arcsense123";   // min 8 chars
+
+  // OPTIONAL: Your home Wi-Fi or mobile phone hotspot credentials
+  // If filled, the ESP connects to your Wi-Fi so your PC has INTERNET and ESP access at the same time!
+  const char* STA_SSID = "";   // e.g. "MyHomeWiFi" or "HotspotName" (leave "" if using AP only)
+  const char* STA_PASS = "";   // e.g. "WiFiPassword"
 
   // Thresholds
   const float I_WARN = 8.0f,  I_TRIP = 12.0f;  // Amps
@@ -409,12 +415,35 @@
     lcd->setCursor(0, 0); lcd->print("ArcSense ESP8266");
     lcd->setCursor(0, 1); lcd->print("Starting WiFi...");
 
-    // Start Access Point
-    WiFi.mode(WIFI_AP);
+    // Dual Wi-Fi mode: SoftAP (ArcSense-ESP) + Optional Station (Home/Hotspot Wi-Fi)
+    WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(AP_SSID, AP_PASS);
+
+    bool staConnected = false;
+    if (STA_SSID != nullptr && strlen(STA_SSID) > 0) {
+      lcd->setCursor(0, 1); lcd->print("Connecting WiFi.");
+      Serial.printf("Connecting to Wi-Fi '%s'...\n", STA_SSID);
+      WiFi.begin(STA_SSID, STA_PASS);
+      unsigned long startTry = millis();
+      while (WiFi.status() != WL_CONNECTED && millis() - startTry < 8000) {
+        delay(250);
+        Serial.print(".");
+      }
+      if (WiFi.status() == WL_CONNECTED) {
+        staConnected = true;
+        Serial.println();
+        Serial.print("Connected to Wi-Fi! Local IP: ");
+        Serial.println(WiFi.localIP());
+      } else {
+        Serial.println("\nWi-Fi connection timed out. Continuing with SoftAP only.");
+      }
+    }
+
     Serial.println();
     Serial.print("ArcSense AP Ready! IP: ");
     Serial.println(WiFi.softAPIP());
+
+    IPAddress activeIP = staConnected ? WiFi.localIP() : WiFi.softAPIP();
 
     // Modern ArcSense App Endpoints
     server.on("/api/state", HTTP_GET, handleApiState);
@@ -447,9 +476,9 @@
     server.begin();
 
     lcd->clear();
-    lcd->setCursor(0, 0); lcd->print(WiFi.softAPIP());
-    lcd->setCursor(0, 1); lcd->print("App Ready");
-    delay(1200);
+    lcd->setCursor(0, 0); lcd->print(activeIP);
+    lcd->setCursor(0, 1); lcd->print(staConnected ? "WiFi Connected" : "SoftAP Ready");
+    delay(1500);
   }
 
   void loop() {
