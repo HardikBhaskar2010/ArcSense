@@ -18,7 +18,9 @@ import { DeviceSettingsModal } from '../components/controls/DeviceSettingsModal'
 import { KeyboardShortcutsModal } from '../components/controls/KeyboardShortcutsModal';
 import { ArcSenseBotBanner } from '../components/dashboard/ArcSenseBotBanner';
 import { HardwareBridgeControls } from '../components/controls/HardwareBridgeControls';
-import { Play } from 'lucide-react';
+import { MobileRemoteController } from '../components/controls/MobileRemoteController';
+import { Play, Zap, Activity } from 'lucide-react';
+import { cn } from '../lib/utils';
 
 export const DashboardPage: React.FC = () => {
   const {
@@ -58,6 +60,7 @@ export const DashboardPage: React.FC = () => {
   const { history, clearHistory } = useTelemetryHistory(state, historyWindowSec);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [mobileView, setMobileView] = useState<'remote' | 'showcase'>('remote');
 
   const handleExportCsv = () => {
     exportTelemetryToCsv(sessionSamples, connectionMode);
@@ -120,82 +123,194 @@ export const DashboardPage: React.FC = () => {
       )}
 
       {/* Main Control Room Layout */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-5 relative z-10">
-        {/* ArcSense AI Bot Assistant & Boot Status */}
-        <ArcSenseBotBanner
-          connectionMode={connectionMode}
-          baseUrl={baseUrl}
-          state={state}
-          latencyMs={latencyMs}
-          isSimulator={isSimulator}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-          onToggleSimulator={setIsSimulator}
-        />
+      <main className="flex-1 max-w-7xl w-full mx-auto p-2 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-5 relative z-10">
+        {/* Mobile View Toggle Switcher (Visible on Mobile / Tablet < 1024px) */}
+        <div className="flex lg:hidden items-center p-1 bg-zinc-900/90 backdrop-blur border border-zinc-800 rounded-xl shadow-md">
+          <button
+            type="button"
+            onClick={() => setMobileView('remote')}
+            className={cn(
+              'flex-1 py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all flex items-center justify-center gap-1.5',
+              mobileView === 'remote'
+                ? 'bg-cyan-500 text-black shadow-glow-normal'
+                : 'text-zinc-400 hover:text-white'
+            )}
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>Command Remote (Loads)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileView('showcase')}
+            className={cn(
+              'flex-1 py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all flex items-center justify-center gap-1.5',
+              mobileView === 'showcase'
+                ? 'bg-zinc-700 text-white shadow'
+                : 'text-zinc-400 hover:text-white'
+            )}
+          >
+            <Activity className="w-3.5 h-3.5 text-zinc-300" />
+            <span>Showcase Graphs</span>
+          </button>
+        </div>
 
-        {/* Hardware Bridge & Remote Communication Controls */}
-        <HardwareBridgeControls
-          connectionMode={connectionMode}
-          baseUrl={baseUrl}
-          state={state}
-          latencyMs={latencyMs}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-          onRefreshTelemetry={() => injectFault(activeFaultMode)}
-        />
-
-        {/* Row 1: Primary Risk & Live Scope */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          <div className="lg:col-span-4 flex flex-col">
-            <RiskPanel state={state} isSimulator={isSimulator} isStale={isStale} />
-          </div>
-          <div className="lg:col-span-8 flex flex-col">
-            <WaveformChart
-              waveform={waveform}
-              irms={state?.irms ?? 0}
-              isPaused={isPaused}
-              showReferenceSine={showReferenceSine}
-              onToggleReferenceSine={toggleReferenceSine}
-            />
-          </div>
-        </section>
-
-        {/* Row 2: 10 Core Sensor Telemetry Cards */}
-        <section>
-          <TelemetryGrid state={state} />
-        </section>
-
-        {/* Row 3: History Trends & Evidence Decomposition */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          <div className="lg:col-span-6 flex flex-col">
-            <TelemetryHistoryChart
-              data={history}
-              tAmb={state?.tAmb ?? 28}
-              isPaused={isPaused}
-              historyWindowSec={historyWindowSec}
-              onSelectWindow={setHistoryWindowSec}
-            />
-          </div>
-          <div className="lg:col-span-6 flex flex-col">
-            <EvidencePanel state={state} />
-          </div>
-        </section>
-
-        {/* Row 4: Fault Simulator & Real-Time Event Log */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          <div className="lg:col-span-6 flex flex-col">
-            <FaultSimulatorPanel
+        {/* ============================================================ */}
+        {/* MOBILE VIEW (< lg): Remote Controller or Showcase */}
+        {/* ============================================================ */}
+        <div className="block lg:hidden space-y-3">
+          {mobileView === 'remote' ? (
+            /* Dedicated Compact Remote Controller (Loads & Commands FIRST) */
+            <MobileRemoteController
               activeMode={activeFaultMode}
               isSimulator={isSimulator}
               isInjecting={isInjecting}
               isResetting={isResetting}
               tripped={state?.tripped ?? false}
+              state={state}
+              connectionMode={connectionMode}
+              baseUrl={baseUrl}
+              latencyMs={latencyMs}
+              eventLogs={eventLogs}
               onInject={injectFault}
               onReset={resetDevice}
+              onOpenSettings={() => setIsSettingsOpen(true)}
+              onToggleSimulator={setIsSimulator}
             />
-          </div>
-          <div className="lg:col-span-6 flex flex-col">
-            <EventLogPanel logs={eventLogs} onClear={clearLogs} />
-          </div>
-        </section>
+          ) : (
+            /* Mobile Showcase Mode: Load Changing stays #1, followed by charts */
+            <div className="space-y-3">
+              {/* Load Changing ALWAYS first on mobile */}
+              <FaultSimulatorPanel
+                activeMode={activeFaultMode}
+                isSimulator={isSimulator}
+                isInjecting={isInjecting}
+                isResetting={isResetting}
+                tripped={state?.tripped ?? false}
+                onInject={injectFault}
+                onReset={resetDevice}
+                isCompact={true}
+              />
+
+              {/* Primary Risk & Live Scope */}
+              <div className="space-y-3">
+                <RiskPanel state={state} isSimulator={isSimulator} isStale={isStale} />
+                <WaveformChart
+                  waveform={waveform}
+                  irms={state?.irms ?? 0}
+                  isPaused={isPaused}
+                  showReferenceSine={showReferenceSine}
+                  onToggleReferenceSine={toggleReferenceSine}
+                />
+              </div>
+
+              {/* 10 Sensor Telemetry Grid */}
+              <TelemetryGrid state={state} />
+
+              {/* History & Evidence */}
+              <TelemetryHistoryChart
+                data={history}
+                tAmb={state?.tAmb ?? 28}
+                isPaused={isPaused}
+                historyWindowSec={historyWindowSec}
+                onSelectWindow={setHistoryWindowSec}
+              />
+              <EvidencePanel state={state} />
+
+              {/* Hardware Bridge & Assistant */}
+              <HardwareBridgeControls
+                connectionMode={connectionMode}
+                baseUrl={baseUrl}
+                state={state}
+                latencyMs={latencyMs}
+                onOpenSettings={() => setIsSettingsOpen(true)}
+                onRefreshTelemetry={() => injectFault(activeFaultMode)}
+              />
+
+              <EventLogPanel logs={eventLogs} onClear={clearLogs} />
+            </div>
+          )}
+        </div>
+
+        {/* ============================================================ */}
+        {/* DESKTOP VIEW (lg:): Full Multi-Column Control Room */}
+        {/* ============================================================ */}
+        <div className="hidden lg:block space-y-5">
+          {/* ArcSense AI Bot Assistant & Boot Status */}
+          <ArcSenseBotBanner
+            connectionMode={connectionMode}
+            baseUrl={baseUrl}
+            state={state}
+            latencyMs={latencyMs}
+            isSimulator={isSimulator}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            onToggleSimulator={setIsSimulator}
+          />
+
+          {/* Hardware Bridge & Remote Communication Controls */}
+          <HardwareBridgeControls
+            connectionMode={connectionMode}
+            baseUrl={baseUrl}
+            state={state}
+            latencyMs={latencyMs}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            onRefreshTelemetry={() => injectFault(activeFaultMode)}
+          />
+
+          {/* Row 1: Primary Risk & Live Scope */}
+          <section className="grid grid-cols-12 gap-4">
+            <div className="col-span-4 flex flex-col">
+              <RiskPanel state={state} isSimulator={isSimulator} isStale={isStale} />
+            </div>
+            <div className="col-span-8 flex flex-col">
+              <WaveformChart
+                waveform={waveform}
+                irms={state?.irms ?? 0}
+                isPaused={isPaused}
+                showReferenceSine={showReferenceSine}
+                onToggleReferenceSine={toggleReferenceSine}
+              />
+            </div>
+          </section>
+
+          {/* Row 2: 10 Core Sensor Telemetry Cards */}
+          <section>
+            <TelemetryGrid state={state} />
+          </section>
+
+          {/* Row 3: History Trends & Evidence Decomposition */}
+          <section className="grid grid-cols-12 gap-4">
+            <div className="col-span-6 flex flex-col">
+              <TelemetryHistoryChart
+                data={history}
+                tAmb={state?.tAmb ?? 28}
+                isPaused={isPaused}
+                historyWindowSec={historyWindowSec}
+                onSelectWindow={setHistoryWindowSec}
+              />
+            </div>
+            <div className="col-span-6 flex flex-col">
+              <EvidencePanel state={state} />
+            </div>
+          </section>
+
+          {/* Row 4: Fault Simulator & Real-Time Event Log */}
+          <section className="grid grid-cols-12 gap-4">
+            <div className="col-span-6 flex flex-col">
+              <FaultSimulatorPanel
+                activeMode={activeFaultMode}
+                isSimulator={isSimulator}
+                isInjecting={isInjecting}
+                isResetting={isResetting}
+                tripped={state?.tripped ?? false}
+                onInject={injectFault}
+                onReset={resetDevice}
+              />
+            </div>
+            <div className="col-span-6 flex flex-col">
+              <EventLogPanel logs={eventLogs} onClear={clearLogs} />
+            </div>
+          </section>
+        </div>
       </main>
 
       {/* Footer */}
