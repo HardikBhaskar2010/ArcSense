@@ -5,7 +5,7 @@ export interface ApiClientConfig {
   timeoutMs?: number;
 }
 
-const DEFAULT_TIMEOUT_MS = 2000;
+const DEFAULT_TIMEOUT_MS = 5000;
 
 /**
  * Safely parse and sanitize incoming state JSON from the ESP32
@@ -120,11 +120,14 @@ export class ArcSenseApiClient {
     return this.baseUrl;
   }
 
-  private async fetchWithTimeout(url: string, signal?: AbortSignal): Promise<Response> {
+  private async fetchWithTimeout(url: string, signal?: AbortSignal, customTimeoutMs?: number): Promise<Response> {
+    const timeout = customTimeoutMs || this.timeoutMs;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timeoutId = setTimeout(() => {
+      controller.abort(new Error(`Timeout after ${timeout}ms: device at ${this.baseUrl} did not respond`));
+    }, timeout);
 
-    const onCallerAbort = () => controller.abort();
+    const onCallerAbort = () => controller.abort(signal?.reason);
     if (signal) {
       signal.addEventListener('abort', onCallerAbort);
     }
@@ -139,6 +142,11 @@ export class ArcSenseApiClient {
         signal: controller.signal,
       });
       return response;
+    } catch (err: any) {
+      if (controller.signal.aborted && controller.signal.reason) {
+        throw controller.signal.reason;
+      }
+      throw err;
     } finally {
       clearTimeout(timeoutId);
       if (signal) {
@@ -178,7 +186,7 @@ export class ArcSenseApiClient {
    */
   public async injectFault(mode: FaultMode, signal?: AbortSignal): Promise<boolean> {
     const endpoint = `${this.baseUrl}/api/inject?mode=${mode}`;
-    const response = await this.fetchWithTimeout(endpoint, signal);
+    const response = await this.fetchWithTimeout(endpoint, signal, 7000);
     if (!response.ok) {
       throw new Error(`Fault injection failed: HTTP ${response.status}`);
     }
@@ -190,7 +198,7 @@ export class ArcSenseApiClient {
    */
   public async reset(signal?: AbortSignal): Promise<boolean> {
     const endpoint = `${this.baseUrl}/api/reset`;
-    const response = await this.fetchWithTimeout(endpoint, signal);
+    const response = await this.fetchWithTimeout(endpoint, signal, 7000);
     if (!response.ok) {
       throw new Error(`Reset command failed: HTTP ${response.status}`);
     }
@@ -202,7 +210,7 @@ export class ArcSenseApiClient {
    */
   public async ping(signal?: AbortSignal): Promise<{ pong: boolean; uptimeSec?: number; freeHeap?: number }> {
     const endpoint = `${this.baseUrl}/api/ping`;
-    const response = await this.fetchWithTimeout(endpoint, signal);
+    const response = await this.fetchWithTimeout(endpoint, signal, 4000);
     return response.json();
   }
 
@@ -211,7 +219,7 @@ export class ArcSenseApiClient {
    */
   public async scanWifi(signal?: AbortSignal): Promise<Array<{ ssid: string; rssi: number }>> {
     const endpoint = `${this.baseUrl}/api/wifi/scan`;
-    const response = await this.fetchWithTimeout(endpoint, signal);
+    const response = await this.fetchWithTimeout(endpoint, signal, 10000);
     return response.json();
   }
 
@@ -220,7 +228,7 @@ export class ArcSenseApiClient {
    */
   public async saveWifi(ssid: string, pass: string, signal?: AbortSignal): Promise<any> {
     const endpoint = `${this.baseUrl}/api/wifi/save?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`;
-    const response = await this.fetchWithTimeout(endpoint, signal);
+    const response = await this.fetchWithTimeout(endpoint, signal, 10000);
     return response.json();
   }
 
@@ -229,7 +237,7 @@ export class ArcSenseApiClient {
    */
   public async setRelay(action: 'trip' | 'restore', signal?: AbortSignal): Promise<any> {
     const endpoint = `${this.baseUrl}/api/relay?action=${action}`;
-    const response = await this.fetchWithTimeout(endpoint, signal);
+    const response = await this.fetchWithTimeout(endpoint, signal, 7000);
     return response.json();
   }
 
@@ -238,7 +246,7 @@ export class ArcSenseApiClient {
    */
   public async restart(signal?: AbortSignal): Promise<any> {
     const endpoint = `${this.baseUrl}/api/restart`;
-    const response = await this.fetchWithTimeout(endpoint, signal);
+    const response = await this.fetchWithTimeout(endpoint, signal, 4000);
     return response.json();
   }
 }

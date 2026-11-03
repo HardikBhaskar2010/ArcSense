@@ -79,18 +79,17 @@ export function useArcSense() {
         handlePollSuccess(latency);
         recordTelemetry(simState, simWave);
       } else {
-        // Live polling from ESP32 with round-trip latency measurement
-        const [stateRes, waveRes] = await Promise.all([
-          apiClient.getState(signal),
-          apiClient.getWaveform(signal),
-        ]);
+        // Live polling from ESP8266 (sequential requests prevent TCP queue collision)
+        const stateRes = await apiClient.getState(signal);
+        const waveRes = await apiClient.getWaveform(signal);
 
         const latency = Math.round(performance.now() - startTime);
         handlePollSuccess(latency);
         recordTelemetry(stateRes, waveRes);
       }
     } catch (err: any) {
-      if (err.name !== 'AbortError') {
+      const isAbort = signal.aborted || err.name === 'AbortError' || err.message?.toLowerCase().includes('aborted');
+      if (!isAbort) {
         handlePollFailure();
       }
     } finally {
@@ -132,6 +131,7 @@ export function useArcSense() {
         } else {
           await apiClient.injectFault(mode);
           setActiveFaultMode(mode);
+          handlePollSuccess();
           addLog('info', `[LIVE ESP32] Hardware fault injection applied: ${modeNames[mode]}`);
         }
       } catch (err: any) {
@@ -157,6 +157,7 @@ export function useArcSense() {
       } else {
         await apiClient.reset();
         setActiveFaultMode(0);
+        handlePollSuccess();
         addLog('info', '[LIVE ESP32] Hardware reset confirmed: trip cleared, relays normalized.');
       }
     } catch (err: any) {

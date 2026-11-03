@@ -256,7 +256,7 @@ export const useArcSenseStore = create<ArcSenseStore>((set, get) => ({
     const isSim = get().isSimulator;
 
     if (!isSim) {
-      if (fails >= 3 && currentMode !== 'LINK_LOST') {
+      if (fails >= 6 && currentMode !== 'LINK_LOST') {
         set({ connectionMode: 'LINK_LOST', isStale: true, consecutiveFails: fails, packetsFailed: failedTotal });
         get().addLog(
           'danger',
