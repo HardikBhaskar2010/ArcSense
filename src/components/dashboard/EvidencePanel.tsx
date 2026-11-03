@@ -63,19 +63,19 @@ export const EvidencePanel: React.FC<EvidencePanelProps> = ({ state }) => {
   return (
     <div className="bg-industrial-900 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between">
       <div>
-        <div className="flex items-center justify-between mb-3 pb-2 border-b border-zinc-800">
+        <div className="flex items-center justify-between mb-2 sm:mb-3 pb-1.5 sm:pb-2 border-b border-zinc-800">
           <div className="flex items-center gap-1.5">
             <Scale className="w-3.5 h-3.5 text-white" />
             <h3 className="font-mono text-xs font-bold text-zinc-200 tracking-wider uppercase">
               Noisy-OR Evidence Fusion Scores
             </h3>
           </div>
-          <span className="font-mono text-[10px] text-zinc-400">
+          <span className="hidden sm:inline font-mono text-[10px] text-zinc-400">
             Formula: Risk = 100 × (1 − Π(1 − wᵢ·sᵢ))
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
           {items.map((item) => {
             const pct = Math.round(item.score * 100);
             return (

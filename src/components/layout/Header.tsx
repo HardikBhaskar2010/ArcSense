@@ -95,39 +95,39 @@ export const Header: React.FC<HeaderProps> = ({
   const badge = getConnectionBadge();
 
   return (
-    <header className="relative z-10 bg-industrial-900 border-b border-zinc-800 px-4 py-2.5 sm:px-6">
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <header className="relative z-10 bg-industrial-900 border-b border-zinc-800 px-3 py-2 sm:px-6 sm:py-2.5">
+      <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-2.5 sm:gap-3">
         {/* Brand & Subtitle */}
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center text-white shadow-glow-white shrink-0">
-            <Shield className="w-5 h-5" />
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center text-white shadow-glow-white shrink-0">
+            <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div>
-            <div className="flex items-baseline gap-2">
-              <h1 className="font-mono text-base sm:text-lg font-extrabold tracking-wider text-white uppercase">
+            <div className="flex items-baseline gap-1.5 sm:gap-2">
+              <h1 className="font-mono text-sm sm:text-lg font-extrabold tracking-wider text-white uppercase">
                 ArcSense
               </h1>
-              <span className="font-mono text-[10px] text-zinc-300 border border-zinc-700 bg-zinc-900 px-1.5 py-0.2 rounded font-semibold">
+              <span className="font-mono text-[9px] sm:text-[10px] text-zinc-300 border border-zinc-700 bg-zinc-900 px-1.5 py-0.2 rounded font-semibold">
                 CAT C2 · DISASTER MGT
               </span>
             </div>
-            <p className="font-mono text-[11px] text-zinc-400 font-medium">
+            <p className="font-mono text-[10px] sm:text-[11px] text-zinc-400 font-medium truncate max-w-[220px] xs:max-w-xs sm:max-w-none">
               Pre-Fire Electrical Fault Predictor & Predictive Arc Protection
             </p>
           </div>
         </div>
 
         {/* Status Indicators & Action Controls */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5">
           {/* Main Connection Status Badge */}
           <div
             className={cn(
-              'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono border tracking-wider transition-all duration-300',
+              'flex items-center gap-1 px-2 py-1 sm:px-2.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-mono border tracking-wider transition-all duration-300',
               badge.classes
             )}
           >
             {badge.icon}
-            <span>{badge.label}</span>
+            <span className="truncate max-w-[130px] sm:max-w-none">{badge.label}</span>
           </div>
 
           {/* Device IP / Source Address */}
@@ -167,7 +167,7 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={onTogglePause}
             title={isPaused ? 'Resume Feed (Space)' : 'Pause Feed (Space)'}
             className={cn(
-              'flex items-center gap-1 px-2.5 py-1.5 min-h-[38px] rounded border text-xs font-mono font-semibold transition-colors',
+              'flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 min-h-[34px] sm:min-h-[38px] rounded border text-xs font-mono font-semibold transition-colors',
               isPaused
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30'
                 : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-700 text-zinc-200'
@@ -184,13 +184,13 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={onToggleSoundAlerts}
             title={soundAlertsEnabled ? 'Audio Alerts Enabled (Click to Mute)' : 'Audio Alerts Muted (Click to Enable)'}
             className={cn(
-              'p-2 min-h-[38px] min-w-[38px] flex items-center justify-center rounded border transition-colors',
+              'p-1.5 sm:p-2 min-h-[34px] min-w-[34px] sm:min-h-[38px] sm:min-w-[38px] flex items-center justify-center rounded border transition-colors',
               soundAlertsEnabled
                 ? 'bg-white text-black border-white'
                 : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white'
             )}
           >
-            {soundAlertsEnabled ? <Volume2 className="w-4 h-4 text-black" /> : <VolumeX className="w-4 h-4" />}
+            {soundAlertsEnabled ? <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" /> : <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
           </button>
 
           {/* Action: Toggle Simulator/Live */}
@@ -198,9 +198,9 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             aria-label={connectionMode === 'SIMULATOR' ? 'Switch to live ESP32 device' : 'Switch to built-in simulator'}
             onClick={onToggleSimulator}
-            className="px-2.5 py-1.5 min-h-[38px] rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-mono font-semibold text-white transition-colors"
+            className="px-2 sm:px-2.5 py-1 sm:py-1.5 min-h-[34px] sm:min-h-[38px] rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-[11px] sm:text-xs font-mono font-semibold text-white transition-colors"
           >
-            {connectionMode === 'SIMULATOR' ? 'Connect Live' : 'Use Sim'}
+            {connectionMode === 'SIMULATOR' ? 'Live' : 'Sim'}
           </button>
 
           {/* Action: Export CSV */}
@@ -209,19 +209,19 @@ export const Header: React.FC<HeaderProps> = ({
             aria-label="Download CSV session telemetry data"
             onClick={onExportCsv}
             title="Download CSV session telemetry (C)"
-            className="flex items-center gap-1 px-2.5 py-1.5 min-h-[38px] rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-mono font-semibold text-white transition-colors"
+            className="flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 min-h-[34px] sm:min-h-[38px] rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-[11px] sm:text-xs font-mono font-semibold text-white transition-colors"
           >
-            <Download className="w-4 h-4 text-zinc-300" />
+            <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-zinc-300" />
             <span className="hidden sm:inline">CSV</span>
           </button>
 
-          {/* Action: Keyboard Shortcuts Guide */}
+          {/* Action: Keyboard Shortcuts Guide (Hidden on mobile phones) */}
           <button
             type="button"
             aria-label="Open keyboard shortcuts cheat sheet"
             onClick={onOpenShortcuts}
             title="Keyboard Shortcuts (?)"
-            className="p-2 min-h-[38px] min-w-[38px] flex items-center justify-center rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition-colors"
+            className="hidden md:flex p-2 min-h-[38px] min-w-[38px] items-center justify-center rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition-colors"
           >
             <Keyboard className="w-4 h-4" />
           </button>
@@ -232,9 +232,9 @@ export const Header: React.FC<HeaderProps> = ({
             aria-label="Configure connection settings"
             onClick={onOpenSettings}
             title="Configure connection settings (S)"
-            className="p-2 min-h-[38px] min-w-[38px] flex items-center justify-center rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition-colors"
+            className="p-1.5 sm:p-2 min-h-[34px] min-w-[34px] sm:min-h-[38px] sm:min-w-[38px] flex items-center justify-center rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition-colors"
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
         </div>
       </div>
