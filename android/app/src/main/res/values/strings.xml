@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ArcSense</string>
+    <string name="title_activity_main">ArcSense</string>
+    <string name="package_name">com.arcsense.app</string>
+    <string name="custom_url_scheme">com.arcsense.app</string>
+</resources>

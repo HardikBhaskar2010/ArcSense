@@ -24,11 +24,13 @@ describe('Connection State and Event Logging', () => {
     expect(useArcSenseStore.getState().isStale).toBe(true);
     expect(useArcSenseStore.getState().consecutiveFails).toBe(1);
 
-    // 2nd failure
-    store.handlePollFailure();
-    expect(useArcSenseStore.getState().consecutiveFails).toBe(2);
+    // 2nd through 5th failures
+    for (let i = 2; i <= 5; i++) {
+      store.handlePollFailure();
+      expect(useArcSenseStore.getState().consecutiveFails).toBe(i);
+    }
 
-    // 3rd failure triggers LINK_LOST
+    // 6th failure triggers LINK_LOST
     store.handlePollFailure();
     expect(useArcSenseStore.getState().connectionMode).toBe('LINK_LOST');
     expect(useArcSenseStore.getState().isStale).toBe(true);
