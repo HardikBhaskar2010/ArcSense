@@ -35,9 +35,9 @@ export const TelemetryHistoryChart: React.FC<TelemetryHistoryChartProps> = ({
   const windows = [30, 60, 90, 180];
 
   return (
-    <div className="bg-industrial-900 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between">
+    <div className="bg-scada-card border border-scada-border rounded-xl p-3 sm:p-4 flex flex-col justify-between shadow-lg">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-2 border-b border-zinc-800">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-2 border-b border-scada-border">
         <div className="flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-orange-400" />
           <h3 className="font-mono text-xs font-bold text-white tracking-wider uppercase">
@@ -53,7 +53,7 @@ export const TelemetryHistoryChart: React.FC<TelemetryHistoryChartProps> = ({
         {/* Window Selector */}
         <div className="flex items-center gap-2">
           {onSelectWindow && (
-            <div className="flex items-center bg-zinc-950 border border-zinc-800 rounded p-0.5 text-[10px] font-mono">
+            <div className="flex items-center bg-scada-surface border border-scada-border rounded p-0.5 text-[10px] font-mono">
               {windows.map((w) => (
                 <button
                   key={w}
@@ -63,7 +63,7 @@ export const TelemetryHistoryChart: React.FC<TelemetryHistoryChartProps> = ({
                   className={cn(
                     'px-2 py-0.5 rounded transition-colors',
                     historyWindowSec === w
-                      ? 'bg-white text-black font-bold'
+                      ? 'bg-cyan-500 text-black font-bold'
                       : 'text-zinc-400 hover:text-white'
                   )}
                 >
@@ -82,7 +82,7 @@ export const TelemetryHistoryChart: React.FC<TelemetryHistoryChartProps> = ({
       </div>
 
       {/* Recharts Canvas */}
-      <div className="w-full h-[220px] sm:h-[240px]">
+      <div className="w-full h-[220px] sm:h-[260px] lg:h-[290px]">
         {data.length < 2 ? (
           <div className="w-full h-full flex flex-col items-center justify-center font-mono text-xs text-zinc-500">
             <span>Gathering rolling telemetry points...</span>
@@ -90,8 +90,8 @@ export const TelemetryHistoryChart: React.FC<TelemetryHistoryChartProps> = ({
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" opacity={0.7} />
-              <XAxis dataKey="timeLabel" stroke="#71717a" fontSize={10} minTickGap={20} />
+              <CartesianGrid strokeDasharray="2 2" stroke="#1B2330" opacity={0.8} />
+              <XAxis dataKey="timeLabel" stroke="#64748B" fontSize={10} minTickGap={20} fontFamily="JetBrains Mono, monospace" />
               
               {/* Left Y-Axis: Temperature (°C) */}
               <YAxis
@@ -101,6 +101,7 @@ export const TelemetryHistoryChart: React.FC<TelemetryHistoryChartProps> = ({
                 fontSize={10}
                 tickFormatter={(v) => `${v}°C`}
                 width={45}
+                fontFamily="JetBrains Mono, monospace"
               />
 
               {/* Right Y-Axis: Risk Score (0-100) */}
@@ -112,6 +113,7 @@ export const TelemetryHistoryChart: React.FC<TelemetryHistoryChartProps> = ({
                 fontSize={10}
                 tickFormatter={(v) => `${v}%`}
                 width={38}
+                fontFamily="JetBrains Mono, monospace"
               />
 
               {/* Safety Threshold Lines */}
@@ -132,12 +134,13 @@ export const TelemetryHistoryChart: React.FC<TelemetryHistoryChartProps> = ({
 
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#121214',
-                  borderColor: '#27272a',
-                  borderRadius: '6px',
+                  backgroundColor: '#0E1218',
+                  borderColor: '#1B2330',
+                  borderRadius: '8px',
                   fontSize: '11px',
-                  fontFamily: 'monospace',
+                  fontFamily: 'JetBrains Mono, monospace',
                   color: '#ffffff',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
                 }}
                 formatter={(val: any, name: any) => {
                   if (name === 'tObj') return [`${Number(val).toFixed(1)} °C`, 'Joint Temp'];

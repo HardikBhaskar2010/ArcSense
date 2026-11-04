@@ -82,10 +82,10 @@ export const FaultSimulatorPanel: React.FC<FaultSimulatorPanelProps> = ({
   ];
 
   return (
-    <div className="bg-industrial-900 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between">
+    <div className="bg-scada-card border border-scada-border rounded-xl p-3 sm:p-4 flex flex-col justify-between shadow-lg">
       {/* Header */}
       <div>
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2 border-b border-zinc-800">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2 border-b border-scada-border">
           <div className="flex items-center gap-2">
             <h3 className="font-mono text-xs font-bold text-white tracking-wider uppercase">
               Fault Injection & Simulator Panel
@@ -98,12 +98,12 @@ export const FaultSimulatorPanel: React.FC<FaultSimulatorPanelProps> = ({
                   : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
               )}
             >
-              {isSimulator ? 'Virtual Simulation Mode' : 'Live ESP32 Relay / Chopper Control'}
+              {isSimulator ? 'Virtual Simulation Mode' : 'Live ESP8266 Relay / Chopper Control'}
             </span>
           </div>
 
           {(isInjecting || isResetting) && (
-            <div className="flex items-center gap-1.5 text-xs font-mono text-white animate-pulse">
+            <div className="flex items-center gap-1.5 text-xs font-mono text-cyan-300 animate-pulse">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
               <span>Transmitting command to device...</span>
             </div>
@@ -124,8 +124,8 @@ export const FaultSimulatorPanel: React.FC<FaultSimulatorPanelProps> = ({
                 onClick={() => onInject(m.id)}
                 className={cn(
                   'group relative text-left p-2.5 sm:p-3 rounded-lg border transition-all duration-200 flex flex-col justify-between min-h-[76px] sm:min-h-[96px]',
-                  'bg-zinc-950',
-                  isActive ? m.activeBorder : cn('border-zinc-800 text-zinc-300', m.colorClass),
+                  'bg-scada-surface',
+                  isActive ? m.activeBorder : cn('border-scada-border text-zinc-300', m.colorClass),
                   isInjecting || isResetting ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer active:scale-[0.98]'
                 )}
               >

@@ -8,6 +8,28 @@ export default {
   theme: {
     extend: {
       colors: {
+        scada: {
+          bg: '#000000',
+          surface: '#09090b',
+          card: '#0e0e11',
+          cardHover: '#16161a',
+          border: '#27272a',
+          borderLight: '#3f3f46',
+          accent: '#ffffff',
+          accentMuted: '#a1a1aa',
+          accentDim: 'rgba(255, 255, 255, 0.08)',
+        },
+        scada: {
+          bg: '#000000',
+          surface: '#09090b',
+          card: '#0e0e11',
+          cardHover: '#16161a',
+          border: '#27272a',
+          borderLight: '#3f3f46',
+          accent: '#ffffff',
+          accentMuted: '#a1a1aa',
+          accentDim: 'rgba(255, 255, 255, 0.08)',
+        },
         industrial: {
           950: '#000000',
           900: '#09090b',

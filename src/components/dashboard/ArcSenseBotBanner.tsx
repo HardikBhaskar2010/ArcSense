@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, Wifi, Zap, Settings, Terminal, Radio } from 'lucide-react';
+import { Wifi, Terminal } from 'lucide-react';
 import { ConnectionMode, ArcSenseState } from '../../types/arcsense';
 import { cn } from '../../lib/utils';
 
@@ -7,9 +7,9 @@ interface ArcSenseBotBannerProps {
   connectionMode: ConnectionMode;
   baseUrl: string;
   state: ArcSenseState | null;
-  latencyMs: number | null;
+  latencyMs?: number | null;
   isSimulator?: boolean;
-  onOpenSettings: () => void;
+  onOpenSettings?: () => void;
   onToggleSimulator: (val: boolean) => void;
 }
 
@@ -17,8 +17,6 @@ export const ArcSenseBotBanner: React.FC<ArcSenseBotBannerProps> = ({
   connectionMode,
   baseUrl,
   state,
-  latencyMs,
-  onOpenSettings,
   onToggleSimulator,
 }) => {
   const [bootStep, setBootStep] = useState<number>(0);
@@ -92,107 +90,56 @@ export const ArcSenseBotBanner: React.FC<ArcSenseBotBannerProps> = ({
   const msg = getBotMessage();
 
   return (
-    <div className="relative overflow-hidden rounded-xl bg-industrial-900/90 border border-zinc-800 shadow-xl backdrop-blur-md transition-all">
+    <div className="relative overflow-hidden rounded-xl bg-scada-card border border-scada-border shadow-lg transition-all">
       {/* Top subtle highlight line */}
       <div
         className={cn(
           'absolute top-0 left-0 right-0 h-0.5 transition-colors duration-500',
           connectionMode === 'LIVE'
-            ? 'bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600'
+            ? 'bg-emerald-500'
             : connectionMode === 'SIMULATOR'
-              ? 'bg-gradient-to-r from-amber-500 via-orange-400 to-amber-600'
-              : connectionMode === 'CONNECTING'
-                ? 'bg-gradient-to-r from-sky-500 via-blue-400 to-sky-600'
-                : 'bg-gradient-to-r from-red-500 via-rose-400 to-red-600'
+            ? 'bg-amber-400'
+            : connectionMode === 'CONNECTING'
+            ? 'bg-cyan-500 animate-pulse'
+            : 'bg-red-500'
         )}
       />
 
-      <div className="p-3 sm:p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 font-mono">
-        {/* Left: Bot Identity & Live Text */}
-        <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
-          <div
-            className={cn(
-              'w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border transition-transform duration-300',
-              connectionMode === 'LIVE'
-                ? 'bg-emerald-950 border-emerald-500/50 text-emerald-400 shadow-glow-normal scale-105'
-                : connectionMode === 'SIMULATOR'
-                  ? 'bg-amber-950 border-amber-500/50 text-amber-400'
-                  : connectionMode === 'CONNECTING'
-                    ? 'bg-sky-950 border-sky-500/50 text-sky-400 animate-spin-slow'
-                    : 'bg-red-950 border-red-500/50 text-red-400'
-            )}
-          >
-            <Bot className="w-5 h-5" />
+      <div className="p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 font-mono text-xs">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-scada-surface border border-scada-border flex items-center justify-center text-cyan-400 shrink-0">
+            <Terminal className="w-3.5 h-3.5" />
           </div>
-
-          <div className="space-y-0.5 min-w-0">
+          <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-slate-200 tracking-wider flex items-center gap-1.5">
-                <Terminal className="w-3 h-3 text-zinc-400" />
-                {msg.prefix}
+              <span className="text-zinc-400 text-[10px] uppercase font-bold tracking-wider">
+                &gt; {msg.prefix}
               </span>
               <span
                 className={cn(
-                  'text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider',
+                  'px-1.5 py-0.2 rounded text-[9px] uppercase tracking-wider border font-bold',
                   msg.badgeClass
                 )}
               >
                 {msg.badge}
               </span>
-              {latencyMs !== null && connectionMode === 'LIVE' && (
-                <span className="text-[10px] text-zinc-400 font-mono flex items-center gap-1">
-                  <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
-                  {latencyMs}ms ping
-                </span>
-              )}
             </div>
-
-            <p className={cn('text-xs sm:text-[13px] font-medium leading-relaxed truncate-2-lines', msg.color)}>
+            <p className={cn('text-[11px] font-sans truncate mt-0.5', msg.color)}>
               {msg.text}
-              <span className="inline-block w-1.5 h-3.5 bg-current ml-1 animate-pulse align-middle" />
             </p>
           </div>
         </div>
 
-        {/* Right: Quick Action Controls */}
-        <div className="flex items-center gap-2 self-stretch md:self-auto shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-zinc-800">
-          {connectionMode === 'LIVE' ? (
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              className="flex-1 md:flex-initial px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <Wifi className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Hardware Link Settings</span>
-            </button>
-          ) : connectionMode === 'SIMULATOR' ? (
+        <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+          {connectionMode !== 'LIVE' && (
             <button
               type="button"
               onClick={() => onToggleSimulator(false)}
-              className="flex-1 md:flex-initial px-3 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+              className="px-2.5 py-1 rounded-lg bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 text-[10px] font-mono font-semibold flex items-center gap-1.5 transition-colors"
             >
-              <Wifi className="w-3.5 h-3.5" />
-              <span>Reconnect to Hardware Node</span>
+              <Wifi className="w-3 h-3 text-emerald-400" />
+              <span>Connect Live Hardware</span>
             </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={onOpenSettings}
-                className="flex-1 md:flex-initial px-3 py-1.5 rounded-lg bg-sky-950/80 hover:bg-sky-900 border border-sky-600/50 text-sky-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
-              >
-                <Settings className="w-3.5 h-3.5" />
-                <span>Configure Node IP</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onToggleSimulator(true)}
-                className="flex-1 md:flex-initial px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <Zap className="w-3.5 h-3.5 text-amber-400" />
-                <span>Launch Simulator</span>
-              </button>
-            </>
           )}
         </div>
       </div>

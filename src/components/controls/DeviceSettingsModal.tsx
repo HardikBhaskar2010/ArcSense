@@ -83,11 +83,11 @@ export const DeviceSettingsModal: React.FC<DeviceSettingsModalProps> = ({
       aria-labelledby="settings-dialog-title"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200"
     >
-      <div className="bg-industrial-900 border border-zinc-700 rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-scada-card border border-scada-border rounded-xl max-w-md w-full p-4 sm:p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+        <div className="flex items-center justify-between pb-3 border-b border-scada-border">
           <div className="flex items-center gap-2">
-            <Wifi className="w-5 h-5 text-white" />
+            <Wifi className="w-5 h-5 text-cyan-400" />
             <h3 id="settings-dialog-title" className="font-mono text-sm font-bold text-white uppercase tracking-wider">
               Device Connection & Polling Settings
             </h3>
@@ -96,14 +96,14 @@ export const DeviceSettingsModal: React.FC<DeviceSettingsModalProps> = ({
             type="button"
             aria-label="Close settings dialog"
             onClick={onClose}
-            className="p-1.5 rounded text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-scada-surface transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Network Diagnostics Bar */}
-        <div className="grid grid-cols-3 gap-2 p-2.5 rounded bg-zinc-950 border border-zinc-800 font-mono text-xs">
+        <div className="grid grid-cols-3 gap-2 p-2.5 rounded bg-scada-surface border border-scada-border font-mono text-xs">
           <div>
             <span className="text-[10px] text-zinc-400 block">Ping Latency</span>
             <span className="font-bold text-white">
@@ -126,7 +126,7 @@ export const DeviceSettingsModal: React.FC<DeviceSettingsModalProps> = ({
         <form onSubmit={handleSave} className="space-y-4 font-mono text-xs">
           <div>
             <label className="block text-zinc-200 font-semibold mb-1">
-              ESP32 Device Base Address / IP:
+              ESP Node Base Address / IP:
             </label>
             <div className="flex gap-2">
               <input
@@ -134,11 +134,11 @@ export const DeviceSettingsModal: React.FC<DeviceSettingsModalProps> = ({
                 value={ipInput}
                 onChange={(e) => setIpInput(e.target.value)}
                 placeholder="http://192.168.4.1"
-                className="flex-1 bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-white focus:outline-none focus:border-white font-mono"
+                className="flex-1 bg-scada-surface border border-scada-border rounded px-3 py-2 text-white focus:outline-none focus:border-cyan-400 font-mono"
               />
               <button
                 type="submit"
-                className="px-4 py-2 bg-white hover:bg-zinc-200 text-black font-bold rounded flex items-center gap-1 transition-colors"
+                className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded flex items-center gap-1 transition-colors"
               >
                 {savedSuccess ? <Check className="w-4 h-4" /> : 'Save'}
               </button>
@@ -152,14 +152,14 @@ export const DeviceSettingsModal: React.FC<DeviceSettingsModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPreset('http://192.168.4.1')}
-                className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700"
+                className="px-2.5 py-1 rounded bg-scada-surface hover:bg-scada-border text-zinc-200 border border-scada-border"
               >
-                192.168.4.1 (ESP32 AP)
+                192.168.4.1 (ESP AP)
               </button>
               <button
                 type="button"
                 onClick={() => setPreset('http://localhost:5173')}
-                className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700"
+                className="px-2.5 py-1 rounded bg-scada-surface hover:bg-scada-border text-zinc-200 border border-scada-border"
               >
                 localhost:5173 (Dev)
               </button>
@@ -167,16 +167,16 @@ export const DeviceSettingsModal: React.FC<DeviceSettingsModalProps> = ({
           </div>
 
           {/* Hardware Wi-Fi Manager Portal link */}
-          <div className="pt-2 border-t border-zinc-800">
+          <div className="pt-2 border-t border-scada-border">
             <span className="text-[11px] text-zinc-300 block mb-1 font-medium">On-The-Go Wi-Fi Setup:</span>
             <p className="text-[10px] text-zinc-400 mb-2 leading-relaxed">
-              Moving to a new Wi-Fi or mobile phone hotspot? Connect to <code className="text-sky-300 font-bold">ArcSense-ESP</code> and open the setup portal to scan & save credentials to flash without reflashing code:
+              Moving to a new Wi-Fi or mobile phone hotspot? Connect to <code className="text-cyan-300 font-bold">ArcSense-ESP</code> and open the setup portal to scan & save credentials to flash without reflashing code:
             </p>
             <a
               href={`${currentBaseUrl.startsWith('http://192.168.') ? currentBaseUrl : 'http://192.168.4.1'}/wifi`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-sky-950/80 hover:bg-sky-900 border border-sky-600/40 text-sky-300 text-xs font-mono transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-600/40 text-cyan-300 text-xs font-mono transition-colors"
             >
               <Wifi className="w-3.5 h-3.5" />
               <span>Open Hardware Wi-Fi Portal (/wifi) ↗</span>
@@ -185,9 +185,9 @@ export const DeviceSettingsModal: React.FC<DeviceSettingsModalProps> = ({
 
           {/* Polling Frequency Selector */}
           {onSelectPollRate && (
-            <div className="pt-2 border-t border-zinc-800">
+            <div className="pt-2 border-t border-scada-border">
               <div className="flex items-center gap-1 text-zinc-200 font-semibold mb-1.5">
-                <Gauge className="w-3.5 h-3.5 text-white" />
+                <Gauge className="w-3.5 h-3.5 text-cyan-400" />
                 <span>Polling Interval:</span>
               </div>
               <div className="space-y-1.5">
@@ -197,8 +197,8 @@ export const DeviceSettingsModal: React.FC<DeviceSettingsModalProps> = ({
                     className={cn(
                       'flex items-center justify-between p-2 rounded border cursor-pointer transition-colors',
                       pollRateMs === opt.rate
-                        ? 'bg-zinc-800 border-white text-white'
-                        : 'bg-zinc-950 border-zinc-800 text-zinc-300 hover:bg-zinc-900'
+                        ? 'bg-scada-surface border-cyan-400 text-white'
+                        : 'bg-scada-surface border-scada-border text-zinc-300 hover:bg-scada-card'
                     )}
                   >
                     <div className="flex items-center gap-2">
@@ -208,7 +208,7 @@ export const DeviceSettingsModal: React.FC<DeviceSettingsModalProps> = ({
                         value={opt.rate}
                         checked={pollRateMs === opt.rate}
                         onChange={() => onSelectPollRate(opt.rate)}
-                        className="accent-white"
+                        className="accent-cyan-400"
                       />
                       <span className="font-sans text-xs">{opt.label}</span>
                     </div>
@@ -220,7 +220,7 @@ export const DeviceSettingsModal: React.FC<DeviceSettingsModalProps> = ({
           )}
 
           {/* Connection Mode Toggle */}
-          <div className="pt-3 border-t border-zinc-800 flex items-center justify-between">
+          <div className="pt-3 border-t border-scada-border flex items-center justify-between">
             <div>
               <span className="block font-semibold text-zinc-200">Operational Mode:</span>
               <span className="text-[11px] text-zinc-400">
@@ -233,20 +233,20 @@ export const DeviceSettingsModal: React.FC<DeviceSettingsModalProps> = ({
                 onToggleSimulator(connectionMode !== 'SIMULATOR');
                 onClose();
               }}
-              className="px-3 py-1.5 rounded font-bold uppercase text-[11px] bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 text-white transition-colors"
+              className="px-3 py-1.5 rounded font-bold uppercase text-[11px] bg-scada-surface hover:bg-scada-border border border-scada-border text-white transition-colors"
             >
-              {connectionMode === 'SIMULATOR' ? 'Switch to Live ESP32' : 'Switch to Simulator'}
+              {connectionMode === 'SIMULATOR' ? 'Switch to Live ESP' : 'Switch to Simulator'}
             </button>
           </div>
 
           {/* Network instructions */}
-          <div className="bg-zinc-950 p-3 rounded border border-zinc-800 text-[11px] text-zinc-300 space-y-1 font-sans">
+          <div className="bg-scada-surface p-3 rounded border border-scada-border text-[11px] text-zinc-300 space-y-1 font-sans">
             <div className="font-mono font-bold text-zinc-200 flex items-center gap-1">
-              <AlertCircle className="w-3.5 h-3.5 text-white" />
+              <AlertCircle className="w-3.5 h-3.5 text-cyan-400" />
               <span>Exhibition Wi-Fi Instructions:</span>
             </div>
-            <p>1. Connect your laptop or phone to the ESP32 Wi-Fi: <strong>ArcSense-Demo</strong> (pass: <code>arcsense123</code>).</p>
-            <p>2. Disable cellular/mobile data on phones so local IP traffic routes to the ESP32.</p>
+            <p>1. Connect your laptop or phone to the ESP8266 Wi-Fi: <strong>ArcSense-Demo</strong> (pass: <code>arcsense123</code>).</p>
+            <p>2. Disable cellular/mobile data on phones so local IP traffic routes to the ESP node.</p>
             <p>3. Access the dashboard at <code>http://192.168.4.1/</code> or run React locally via <code>http://localhost:5173/?ip=192.168.4.1</code>.</p>
           </div>
 
