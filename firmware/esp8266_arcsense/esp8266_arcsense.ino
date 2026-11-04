@@ -6,7 +6,6 @@
     * I2C 1602 LCD   : SDA -> D2 (GPIO4), SCL -> D1 (GPIO5), VCC -> 3V3 (or VIN), GND -> G
     * Relay IN1      : D5 (GPIO14) -> Relay IN1 (active-LOW: coil ON = live, OFF = tripped)
     * Green LED      : D7 (GPIO13) -> 220R -> LED -> G
-    * Yellow LED     : D6 (GPIO12) -> 220R -> LED -> G
     * Red LED        : D0 (GPIO16) -> 220R -> LED -> G
 
   No relay and no buzzer in this version. The "relay" / "tripped" state is still
@@ -14,8 +13,8 @@
 
   LED behavior:
     NORMAL  : green solid
-    WATCH   : yellow solid
-    WARNING : yellow blinking
+    WATCH   : green blinking (risk increasing)
+    WARNING : green blinking (risk increasing)
     TRIP    : red solid
 
   Features:
@@ -40,7 +39,6 @@
 
 #define RELAY_PIN      D5     // GPIO14 (Trip Relay IN1, active-LOW)
 #define LED_GREEN_PIN  D7     // GPIO13
-#define LED_YELLOW_PIN D6     // GPIO12
 #define LED_RED_PIN    D0     // GPIO16
 
 #define EEPROM_MAGIC 0xA7
@@ -220,20 +218,17 @@ float calcRisk(float &sT, float &sS, float &sA, float &sL, float &ttlMin) {
 void updateIndicators() {
   unsigned long now = millis();
 
-  bool green = false, yellow = false, red = false;
+  bool green = false, red = false;
 
   if (tripped || state == STATE_TRIP) {
     red = true;
-  } else if (state == STATE_WARNING) {
-    yellow = ((now / 250) % 2) == 0;          // blinking yellow
-  } else if (state == STATE_WATCH) {
-    yellow = true;
+  } else if (state == STATE_WARNING || state == STATE_WATCH) {
+    green = ((now / 250) % 2) == 0;           // blinking green = risk increasing
   } else {
     green = true;
   }
 
   digitalWrite(LED_GREEN_PIN,  green  ? HIGH : LOW);
-  digitalWrite(LED_YELLOW_PIN, yellow ? HIGH : LOW);
   digitalWrite(LED_RED_PIN,    red    ? HIGH : LOW);
   digitalWrite(RELAY_PIN,      isRelayOn() ? LOW : HIGH); // active-LOW: coil ON when not tripped
 }
@@ -744,21 +739,17 @@ void setup() {
 
   // Status LEDs and Trip Relay
   pinMode(LED_GREEN_PIN, OUTPUT);
-  pinMode(LED_YELLOW_PIN, OUTPUT);
   pinMode(LED_RED_PIN, OUTPUT);
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(LED_GREEN_PIN, LOW);
-  digitalWrite(LED_YELLOW_PIN, LOW);
   digitalWrite(LED_RED_PIN, LOW);
   digitalWrite(RELAY_PIN, LOW); // Coil energized (normal, not tripped)
 
   // Boot self-test: all LEDs on briefly
   digitalWrite(LED_GREEN_PIN, HIGH);
-  digitalWrite(LED_YELLOW_PIN, HIGH);
   digitalWrite(LED_RED_PIN, HIGH);
   delay(400);
   digitalWrite(LED_GREEN_PIN, LOW);
-  digitalWrite(LED_YELLOW_PIN, LOW);
   digitalWrite(LED_RED_PIN, LOW);
 
   Wire.begin(SDA_PIN, SCL_PIN);
