@@ -22,7 +22,10 @@
     * Dynamic physics & telemetry simulation engine running in firmware
     * Live waveform synthesis that mutates with fault injection (Arc, Overload, Bad Joint)
     * Virtual trip latch (reported as relay open when tripped)
-    * 1602 LCD live telemetry & risk display
+    * 1602 LCD dashboard: live telemetry, graphical risk bar, heating forecast,
+      network + link pages, and a blinking TRIP screen that names the cause.
+      Frame-buffered, so only changed lines are redrawn (no flicker).
+    * Serial console: boot banner, state-change event log, 5 s telemetry heartbeat
     * Status LEDs that follow the firmware risk state
     * Full ArcSense REST API (/api/state, /api/wave, /api/inject, /api/reset)
 */
@@ -34,6 +37,8 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <math.h>
+#include <stdarg.h>
+#include <string.h>
 
 #define SDA_PIN        D2     // GPIO4
 #define SCL_PIN        D1     // GPIO5
@@ -133,6 +138,96 @@ const char* DEVICE_NAME = "ArcSense-ESP8266";
 char connectedClient[17] = "";
 unsigned long lastClientConnectMs = 0;
 unsigned long lastClientActivityMs = 0;
+const char* tripCause = "";   // Why the breaker tripped (shown on LCD + serial)
+
+// ---------------------------------------------------------------------------
+// LCD presentation layer (16x2)
+//
+// Screens are composed in a RAM frame buffer and flushed with line-level
+// diffing, so the panel only redraws what actually changed (no flicker, far
+// less I2C traffic). Custom glyphs: 0..5 = risk-bar cell filled 0..5 columns,
+// 6 = Wi-Fi icon, 7 = alert bell. NOTE: glyph 0 is byte 0x00, so it must never
+// travel through a C string; the frame buffer is raw bytes, which is why the
+// bar is written into it directly.
+// ---------------------------------------------------------------------------
+#define GLYPH_BAR0   0
+#define GLYPH_WIFI   6
+#define GLYPH_ALERT  7
+#define CH_DEG       ((char)0xDF)   // degree symbol in the HD44780 character ROM
+
+char lcdFrame[2][16];               // what we want on the display
+char lcdShadow[2][16];              // what is physically on the display
+bool lcdShadowValid = false;
+
+void lcdInvalidate() { lcdShadowValid = false; }
+void lcdClearFrame() { memset(lcdFrame, ' ', sizeof(lcdFrame)); }
+
+void lcdPut(uint8_t row, uint8_t col, const char* s) {
+  while (*s && col < 16) lcdFrame[row][col++] = *s++;
+}
+
+void lcdPutCentered(uint8_t row, const char* s) {
+  int len = (int)strlen(s);
+  if (len > 16) len = 16;
+  lcdPut(row, (uint8_t)((16 - len) / 2), s);
+}
+
+void lcdPutf(uint8_t row, uint8_t col, const char* fmt, ...) {
+  char tmp[32];
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(tmp, sizeof(tmp), fmt, ap);
+  va_end(ap);
+  lcdPut(row, col, tmp);
+}
+
+// Horizontal progress bar, `cells` characters wide, 5 steps per cell.
+void lcdBar(uint8_t row, uint8_t col, uint8_t cells, float pct) {
+  if (pct < 0.0f) pct = 0.0f;
+  if (pct > 100.0f) pct = 100.0f;
+  int filled = (int)(pct * cells * 5.0f / 100.0f + 0.5f);
+  for (uint8_t i = 0; i < cells && (col + i) < 16; i++) {
+    int n = filled - (int)i * 5;
+    if (n < 0) n = 0;
+    if (n > 5) n = 5;
+    lcdFrame[row][col + i] = (char)(GLYPH_BAR0 + n);
+  }
+}
+
+void lcdFlush() {
+  if (!lcd) return;
+  for (uint8_t r = 0; r < 2; r++) {
+    if (lcdShadowValid && memcmp(lcdShadow[r], lcdFrame[r], 16) == 0) continue;
+    lcd->setCursor(0, r);
+    for (uint8_t c = 0; c < 16; c++) lcd->write((uint8_t)lcdFrame[r][c]);
+    memcpy(lcdShadow[r], lcdFrame[r], 16);
+  }
+  lcdShadowValid = true;
+}
+
+// Convenience: show two plain strings (cropped / padded to 16 chars).
+void lcdScreen(const char* l0, const char* l1) {
+  lcdClearFrame();
+  lcdPut(0, 0, l0);
+  lcdPut(1, 0, l1);
+  lcdFlush();
+}
+
+// Upload the custom glyphs (call once, right after lcd->init()).
+void lcdLoadGlyphs() {
+  if (!lcd) return;
+  for (int n = 0; n <= 5; n++) {
+    uint8_t mask = (n == 0) ? 0 : (uint8_t)((0x1F << (5 - n)) & 0x1F);
+    uint8_t cell[8] = { 0x00, 0x1F, mask, mask, mask, mask, 0x1F, 0x00 };
+    lcd->createChar(GLYPH_BAR0 + n, cell);
+  }
+  uint8_t wifi[8]  = { 0x00, 0x0E, 0x11, 0x04, 0x0A, 0x00, 0x04, 0x00 };
+  uint8_t alert[8] = { 0x04, 0x0E, 0x0E, 0x0E, 0x1F, 0x00, 0x04, 0x00 };
+  lcd->createChar(GLYPH_WIFI, wifi);
+  lcd->createChar(GLYPH_ALERT, alert);
+  lcd->home();
+  lcdInvalidate();
+}
 
 const char* stateName(int s) {
   switch (s) {
@@ -327,6 +422,7 @@ void simTick(float dt) {
   if (arcCountVal >= 10 || tObj >= T_TRIP || irms >= I_TRIP) {
     state = WARNING;
     if (++dangerHoldTicks >= 3) { // sustained danger triggers the trip latch
+      tripCause = (arcCountVal >= 10) ? "ARC FAULT" : (irms >= I_TRIP) ? "OVERCURRENT" : "OVERHEAT";
       tripped = true;
       state = TRIP;
     }
@@ -402,6 +498,7 @@ void handleApiRelay() {
   cors();
   String action = server.arg("action");
   if (action == "trip") {
+    tripCause = "MANUAL TRIP";
     tripped = true;
     state = TRIP;
   } else if (action == "restore") {
@@ -617,11 +714,7 @@ void handleWifiSubmit() {
 
   server.send(200, "text/html", resp);
 
-  if (lcd) {
-    lcd->clear();
-    lcd->setCursor(0, 0); lcd->print("Connecting WiFi:");
-    lcd->setCursor(0, 1); lcd->print(staSSID);
-  }
+  lcdScreen("Connecting WiFi", staSSID);
 
   WiFi.disconnect();
   delay(200);
@@ -633,9 +726,7 @@ void handleWifiSubmit() {
   if (WiFi.status() == WL_CONNECTED) {
     deviceIP = WiFi.localIP();
     if (lcd) {
-      lcd->clear();
-      lcd->setCursor(0, 0); lcd->print("WiFi Connected!");
-      lcd->setCursor(0, 1); lcd->print(deviceIP);
+      lcdScreen("WiFi Connected!", deviceIP.toString().c_str());
       delay(2500);
     }
   }
@@ -668,11 +759,7 @@ void handleApiWifiSave() {
   strncpy(staPASS, pass.c_str(), sizeof(staPASS) - 1);
   server.send(200, "application/json", "{\"success\":true,\"message\":\"Credentials saved to flash\"}");
 
-  if (lcd) {
-    lcd->clear();
-    lcd->setCursor(0, 0); lcd->print("Connecting WiFi:");
-    lcd->setCursor(0, 1); lcd->print(staSSID);
-  }
+  lcdScreen("Connecting WiFi", staSSID);
 
   WiFi.disconnect();
   delay(200);
@@ -688,59 +775,143 @@ uint8_t scanI2C() {
   return 0;
 }
 
+// Rotating LCD dashboard. Every screen is composed in the frame buffer and
+// flushed with diffing, so only lines that changed are rewritten.
+//
+//   TRIP  -> dedicated blinking screen with the latched cause (always on top)
+//   Toast -> "App Connected" for 4 s after a client first connects
+//   Else  -> 12 s cycle:  Status (5 s) | Forecast (2 s, only while heating) |
+//                         Network (2.5 s) | Link (2.5 s)
 void showLcd() {
   if (!lcd) return;
-  lcd->backlight();
+  unsigned long now = millis();
 
-  // Toast: When laptop connects, show "Connected" / "{DEVICE_NAME}" for 4.0 seconds
-  if (lastClientConnectMs > 0 && (millis() - lastClientConnectMs < 4000)) {
-    char c0[17], c1[17];
-    snprintf(c0, sizeof(c0), "Connected:      ");
-    snprintf(c1, sizeof(c1), "%-16s", DEVICE_NAME);
-    lcd->setCursor(0, 0); lcd->print(c0);
-    lcd->setCursor(0, 1); lcd->print(c1);
-    return;
+  static unsigned long lastBacklightMs = 0;
+  if (now - lastBacklightMs > 2000) {
+    lastBacklightMs = now;
+    lcd->backlight();   // cheap insurance against I2C glitches / brown-outs
   }
 
-  bool isClientActive = (lastClientActivityMs > 0 && (millis() - lastClientActivityMs < 6000));
+  bool isClientActive = (lastClientActivityMs > 0 && (now - lastClientActivityMs < 6000));
   if (!isClientActive && connectedClient[0] != '\0') {
     connectedClient[0] = '\0';
   }
+  bool wifiUp = (WiFi.status() == WL_CONNECTED);
 
   float sT, sS, sA, sL, ttl;
   float risk = calcRisk(sT, sS, sA, sL, ttl);
-  char l0[17], l1[17];
-  snprintf(l0, sizeof(l0), "I:%-4.1fA T:%-3.0fC", (tripped ? 0.0f : irms), tObj);
 
-  // 3-way rotation for line 2 (every 10s):
-  // 0..4s: Status & Risk
-  // 4..7s: IP Address
-  // 7..10s: Connection state
-  unsigned long sec = (millis() / 1000) % 10;
-  if (sec >= 7) {
-    if (isClientActive) {
-      lcd->setCursor(0, 0); lcd->print("Connected:      ");
-      char dName[17];
-      snprintf(dName, sizeof(dName), "%-16s", DEVICE_NAME);
-      lcd->setCursor(0, 1); lcd->print(dName);
-      return;
-    } else {
-      snprintf(l1, sizeof(l1), "Connecting...   ");
-    }
-  } else if (sec >= 4) {
-    char ipBuf[16];
-    snprintf(ipBuf, sizeof(ipBuf), "%s", deviceIP.toString().c_str());
-    snprintf(l1, sizeof(l1), "IP:%-13s", ipBuf);
-  } else {
-    snprintf(l1, sizeof(l1), "%-7s Rk:%2.0f%%", stateName(state), risk);
+  lcdClearFrame();
+
+  // ---- TRIP screen --------------------------------------------------------
+  if (tripped || state == STATE_TRIP) {
+    char mark = (((now / 500) % 2) == 0) ? (char)GLYPH_ALERT : ' ';
+    lcdFrame[0][0]  = mark;
+    lcdFrame[0][15] = mark;
+    lcdPut(0, 2, "CIRCUIT TRIP");
+    if (((now / 3000) % 2) == 0) lcdPutCentered(1, tripCause[0] ? tripCause : "PROTECTION");
+    else                         lcdPutCentered(1, "Reset from app");
+    lcdFlush();
+    return;
   }
 
-  lcd->setCursor(0, 0); lcd->print(l0);
-  lcd->setCursor(0, 1); lcd->print(l1);
+  // ---- Client-connected toast --------------------------------------------
+  if (lastClientConnectMs > 0 && (now - lastClientConnectMs < 4000)) {
+    lcdFrame[0][0] = (char)GLYPH_WIFI;
+    lcdPut(0, 2, "App Connected");
+    lcdPut(1, 0, connectedClient[0] ? connectedClient : DEVICE_NAME);
+    lcdFlush();
+    return;
+  }
+
+  // ---- Rotating pages -----------------------------------------------------
+  unsigned long t = now % 12000;
+  bool haveForecast = (state != STATE_NORMAL && ttl > 0.0f);
+
+  if (t < 5000 || (t < 7000 && !haveForecast)) {
+    // Page 1 - live status:  "I: 1.9A T: 32°C "  /  "NORMAL  ██░░░ 12%"
+    lcdPutf(0, 0, "I:%4.1fA T:%3.0f%cC", irms, tObj, CH_DEG);
+    if (state == STATE_WARNING && ((now / 500) % 2) == 0) lcdFrame[0][15] = (char)GLYPH_ALERT;
+    else if (isClientActive)                              lcdFrame[0][15] = (char)GLYPH_WIFI;
+
+    lcdPutf(1, 0, "%-7s", stateName(state));
+    lcdBar(1, 8, 5, risk);
+    int pct = (int)(risk + 0.5f);
+    if (pct > 99) pct = 99;
+    lcdPutf(1, 13, "%2d%%", pct);
+
+  } else if (t < 7000) {
+    // Page 2 - heating forecast (only while something is heating up)
+    lcdPutf(0, 0, "Rise %+.1f%cC/min", slopeVal, CH_DEG);
+    if (ttl < 10.0f) lcdPutf(1, 0, "Trip in ~%.1f min", ttl);
+    else             lcdPutf(1, 0, "Trip in ~%.0f min", ttl);
+
+  } else if (t < 9500) {
+    // Page 3 - network
+    IPAddress ip = wifiUp ? WiFi.localIP() : WiFi.softAPIP();
+    String ipStr = ip.toString();
+    if (wifiUp) {
+      lcdFrame[0][0] = (char)GLYPH_WIFI;
+      lcdPutf(0, 2, "%.14s", WiFi.SSID().c_str());
+    } else {
+      lcdPutf(0, 0, "AP:%s", AP_SSID);
+    }
+    lcdPut(1, 0, ipStr.c_str());
+
+  } else {
+    // Page 4 - link to the dashboard app
+    if (isClientActive) {
+      lcdFrame[0][0] = (char)GLYPH_WIFI;
+      lcdPut(0, 2, "App Linked");
+      lcdPut(1, 0, DEVICE_NAME);
+    } else {
+      lcdPut(0, 0, "Waiting for app");
+      unsigned long s = now / 1000;
+      lcdPutf(1, 0, "Up %02lu:%02lu:%02lu", s / 3600, (s / 60) % 60, s % 60);
+    }
+  }
+
+  lcdFlush();
+}
+
+// ---------------------------------------------------------------------------
+// Serial console: event log on every state change + a heartbeat every 5 s
+// ---------------------------------------------------------------------------
+void logStateChange() {
+  static ArcRiskState lastLogged = STATE_NORMAL;
+  if (state == lastLogged) return;
+
+  float sT, sS, sA, sL, ttl;
+  float risk = calcRisk(sT, sS, sA, sL, ttl);
+  Serial.printf("[%8.1fs] STATE %-7s -> %-7s | I=%5.2fA  T=%5.1fC  arcs=%2d  risk=%3.0f%%\n",
+                millis() / 1000.0f, stateName(lastLogged), stateName(state),
+                irms, tObj, arcCountVal, risk);
+  if (state == STATE_TRIP) {
+    Serial.printf("             !! TRIPPED - cause: %s\n", tripCause[0] ? tripCause : "unknown");
+  }
+  lastLogged = state;
+}
+
+void logHeartbeat() {
+  static unsigned long lastBeat = 0;
+  if (millis() - lastBeat < 5000) return;
+  lastBeat = millis();
+
+  float sT, sS, sA, sL, ttl;
+  float risk = calcRisk(sT, sS, sA, sL, ttl);
+  Serial.printf("[%8.1fs] %-7s | I=%5.2fA  T=%5.1fC  slope=%+5.2fC/min  risk=%3.0f%%  %s  heap=%u\n",
+                millis() / 1000.0f, stateName(state), irms, tObj, slopeVal, risk,
+                (WiFi.status() == WL_CONNECTED ? "STA" : "AP "), ESP.getFreeHeap());
 }
 
 void setup() {
   Serial.begin(115200);
+  Serial.println();
+  Serial.println(F("=============================================="));
+  Serial.println(F("  ArcSense ESP8266  |  Arc-Fault Guard"));
+  Serial.println(F("  3-LED edition (green / yellow / red)"));
+  Serial.printf("  Build: %s %s\n", __DATE__, __TIME__);
+  Serial.println(F("=============================================="));
 
   // Status LEDs and Trip Relay
   pinMode(LED_GREEN_PIN, OUTPUT);
@@ -752,14 +923,23 @@ void setup() {
   digitalWrite(LED_RED_PIN, LOW);
   digitalWrite(RELAY_PIN, LOW); // Coil energized (normal, not tripped)
 
-  // Boot self-test: all LEDs on briefly
-  digitalWrite(LED_GREEN_PIN, HIGH);
-  digitalWrite(LED_YELLOW_PIN, HIGH);
-  digitalWrite(LED_RED_PIN, HIGH);
-  delay(400);
-  digitalWrite(LED_GREEN_PIN, LOW);
-  digitalWrite(LED_YELLOW_PIN, LOW);
-  digitalWrite(LED_RED_PIN, LOW);
+  // Boot self-test: chase green -> yellow -> red, then all three together
+  {
+    const uint8_t chase[3] = { LED_GREEN_PIN, LED_YELLOW_PIN, LED_RED_PIN };
+    for (uint8_t i = 0; i < 3; i++) {
+      digitalWrite(chase[i], HIGH);
+      delay(200);
+      digitalWrite(chase[i], LOW);
+    }
+    digitalWrite(LED_GREEN_PIN, HIGH);
+    digitalWrite(LED_YELLOW_PIN, HIGH);
+    digitalWrite(LED_RED_PIN, HIGH);
+    delay(300);
+    digitalWrite(LED_GREEN_PIN, LOW);
+    digitalWrite(LED_YELLOW_PIN, LOW);
+    digitalWrite(LED_RED_PIN, LOW);
+  }
+  Serial.println(F("[boot] LED self-test done"));
 
   Wire.begin(SDA_PIN, SCL_PIN);
   uint8_t addr = scanI2C();
@@ -767,26 +947,30 @@ void setup() {
     lcd = new LiquidCrystal_I2C(addr, 16, 2);
     lcd->init();
     lcd->backlight();
+    lcdLoadGlyphs();
+    Serial.printf("[boot] I2C LCD found at 0x%02X\n", addr);
   } else {
     lcd = nullptr;
     Serial.println("No I2C LCD detected. Running without LCD.");
   }
 
-  // 1. Booting Screen
+  // 1. Splash screen with progress bar
   if (lcd) {
-    lcd->clear();
-    lcd->setCursor(0, 0); lcd->print("ArcSense NodeMCU");
-    lcd->setCursor(0, 1); lcd->print("Booting....     ");
-    delay(800);
-    lcd->setCursor(0, 1); lcd->print("Booting System..");
-    delay(600);
+    lcdScreen("    ArcSense", "Arc-Fault Guard");
+    delay(1000);
+    lcdClearFrame();
+    lcdPutCentered(0, "Starting up...");
+    for (uint8_t i = 0; i < 16; i++) {
+      lcdFrame[1][i] = (char)(GLYPH_BAR0 + 5);
+      lcdFlush();
+      delay(50);
+    }
+    delay(200);
   }
 
-  // 2. Hardware Diagnostics
+  // 2. Hardware diagnostics
   if (lcd) {
-    lcd->clear();
-    lcd->setCursor(0, 0); lcd->print("LEDs: OK        ");
-    lcd->setCursor(0, 1); lcd->print("Init Hardware...");
+    lcdScreen("LEDs : OK", "Init hardware...");
     delay(800);
   }
 
@@ -813,13 +997,7 @@ void setup() {
 
   bool staConnected = false;
   if (strlen(staSSID) > 0) {
-    if (lcd) {
-      lcd->clear();
-      lcd->setCursor(0, 0); lcd->print("Connecting WiFi:");
-      char ssidBuf[17];
-      snprintf(ssidBuf, sizeof(ssidBuf), "%-16s", staSSID);
-      lcd->setCursor(0, 1); lcd->print(ssidBuf);
-    }
+    lcdScreen("Connecting", staSSID);
     Serial.printf("Connecting to Wi-Fi '%s'...\n", staSSID);
     WiFi.begin(staSSID, staPASS);
     unsigned long startTry = millis();
@@ -828,11 +1006,11 @@ void setup() {
       delay(250);
       d++;
       if (lcd) {
-        lcd->setCursor(12, 0);
-        if (d % 4 == 0) lcd->print("    ");
-        else if (d % 4 == 1) lcd->print(".   ");
-        else if (d % 4 == 2) lcd->print("..  ");
-        else lcd->print("... ");
+        lcdClearFrame();
+        lcdPut(0, 0, "Connecting");
+        for (int k = 0; k < (d % 4); k++) lcdFrame[0][10 + k] = '.';   // animated dots
+        lcdPut(1, 0, staSSID);
+        lcdFlush();
       }
       Serial.print(".");
     }
@@ -843,28 +1021,20 @@ void setup() {
       Serial.println(WiFi.localIP());
 
       if (lcd) {
-        lcd->clear();
-        lcd->setCursor(0, 0); lcd->print("WiFi Connected! ");
-        char ssidBuf[17];
-        snprintf(ssidBuf, sizeof(ssidBuf), "%-16s", staSSID);
-        lcd->setCursor(0, 1); lcd->print(ssidBuf);
+        lcdScreen("WiFi Connected!", staSSID);
         delay(1500);
       }
     } else {
       Serial.println("\nWi-Fi connection timed out. SoftAP Portal ready at 192.168.4.1/wifi");
       if (lcd) {
-        lcd->clear();
-        lcd->setCursor(0, 0); lcd->print("WiFi AP Mode ON ");
-        lcd->setCursor(0, 1); lcd->print("ArcSense-ESP    ");
+        lcdScreen("WiFi AP Mode ON", AP_SSID);
         delay(1500);
       }
     }
   } else {
     Serial.println("No saved Wi-Fi in Flash. SoftAP Portal active at 192.168.4.1/wifi");
     if (lcd) {
-      lcd->clear();
-      lcd->setCursor(0, 0); lcd->print("WiFi AP Mode ON ");
-      lcd->setCursor(0, 1); lcd->print("ArcSense-ESP    ");
+      lcdScreen("WiFi AP Mode ON", AP_SSID);
       delay(1500);
     }
   }
@@ -873,17 +1043,11 @@ void setup() {
   deviceIP = activeIP;
 
   if (lcd) {
-    lcd->clear();
-    lcd->setCursor(0, 0); lcd->print("Node IP Address:");
-    char ipDisp[17];
-    snprintf(ipDisp, sizeof(ipDisp), "%-16s", deviceIP.toString().c_str());
-    lcd->setCursor(0, 1); lcd->print(ipDisp);
+    lcdScreen("Node IP Address:", deviceIP.toString().c_str());
     delay(2500);
 
-    // Initial Standby Screen before Laptop connects
-    lcd->clear();
-    lcd->setCursor(0, 0); lcd->print("Connecting...   ");
-    lcd->setCursor(0, 1); lcd->print("Waiting Laptop  ");
+    // Initial standby screen before the app connects
+    lcdScreen("Ready", "Waiting for app");
     delay(1000);
   }
 
@@ -962,6 +1126,10 @@ void loop() {
     lastTick = millis();
     simTick(dt);
   }
+
+  // Serial event log + heartbeat
+  logStateChange();
+  logHeartbeat();
 
   // Update LCD display every 250ms
   static unsigned long lastLcd = 0;
